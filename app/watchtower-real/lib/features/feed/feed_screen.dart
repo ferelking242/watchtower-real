@@ -7,6 +7,7 @@ import '../../core/theme/tokens.dart';
 import 'data/mock_feed.dart';
 import 'models/feed_item.dart';
 import 'providers/feed_provider.dart';
+import 'package:go_router/go_router.dart';
 import 'widgets/feed_header.dart';
 import 'widgets/feed_page.dart';
 
@@ -254,35 +255,74 @@ class _FeedSkeleton extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Erreur
+// Erreur — avec boutons Réessayer + Configurer (fix écran bloqué iOS)
 // ─────────────────────────────────────────────────────────────────────────────
-class _FeedError extends StatelessWidget {
+class _FeedError extends ConsumerWidget {
   const _FeedError({required this.message});
   final String message;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline_rounded,
-              color: colorBrand, size: 48),
-          const SizedBox(height: 12),
-          const Text(
-            'Impossible de charger le feed',
-            style: TextStyle(
-                color: colorTextPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            message,
-            style: const TextStyle(color: colorTextSecondary, fontSize: 12),
-            textAlign: TextAlign.center,
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                color: colorBrand, size: 48),
+            const SizedBox(height: 12),
+            const Text(
+              'Impossible de charger le feed',
+              style: TextStyle(
+                  color: colorTextPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(color: colorTextSecondary, fontSize: 12),
+              textAlign: TextAlign.center,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => ref.invalidate(feedItemsProvider),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Réessayer'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorBrand,
+                  foregroundColor: colorTextPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => context.push('/connect'),
+                icon: const Icon(Icons.settings_rounded, size: 18),
+                label: const Text('Configurer le serveur'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colorTextPrimary,
+                  side: const BorderSide(color: colorTextSecondary),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
