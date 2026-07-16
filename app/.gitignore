@@ -1,0 +1,29 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+*.ipr
+*.iws
+.idea/
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+local.properties
+android/app/google-services.json
+# android/app/watchtower-debug.keystore  ← committé intentionnellement (signature stable)
+key.properties
+*.jks
+*.keystore
+# Exception : keystore stable committé pour signature constante
+!android/app/watchtower-debug.keystore

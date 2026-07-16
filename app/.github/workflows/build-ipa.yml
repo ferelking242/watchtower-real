@@ -1,0 +1,159 @@
+name: Build IPA (TrollStore)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build iOS IPA — unsigned / TrollStore
+    runs-on: macos-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Flutter ─────────────────────────────────────────────────────────────
+      - name: Set up Flutter 3.38.x
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.x'
+          channel: stable
+          cache: true
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pub-
+
+      # ── CocoaPods cache ─────────────────────────────────────────────────────
+      - name: Cache CocoaPods specs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cocoapods
+            ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: pods-${{ runner.os }}-
+
+      # ── Deps ────────────────────────────────────────────────────────────────
+      - name: flutter pub get
+        run: flutter pub get
+
+      # ── Generate ios/ platform if repo has none ──────────────────────────
+      - name: Generate iOS platform scaffold
+        run: |
+          PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
+          if [ ! -f "$PBXPROJ" ]; then
+            echo "No pbxproj found — generating via flutter create"
+            flutter create --platforms=ios \
+              --org com.watchtower \
+              --project-name watchtower_real \
+              .
+          else
+            echo "ios/ scaffold already present"
+          fi
+
+      # ── Deployment target iOS 15.0 (compatible 15.8.5 + TrollStore) ────────
+      - name: Set iOS deployment target → 15.0
+        run: |
+          PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
+          PODFILE="ios/Podfile"
+
+          # pbxproj — every occurrence
+          sed -i '' \
+            's/IPHONEOS_DEPLOYMENT_TARGET = [0-9][0-9.]*/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' \
+            "$PBXPROJ"
+          echo "pbxproj targets after patch:"
+          grep "IPHONEOS_DEPLOYMENT_TARGET" "$PBXPROJ" | sort -u || echo "(no IPHONEOS_DEPLOYMENT_TARGET lines found)"
+
+          # Podfile — set or replace platform line
+          if grep -q "^platform :ios" "$PODFILE"; then
+            sed -i '' "s/^platform :ios.*/platform :ios, '15.0'/" "$PODFILE"
+          elif grep -q "^# platform :ios" "$PODFILE"; then
+            sed -i '' "s/^# platform :ios.*/platform :ios, '15.0'/" "$PODFILE"
+          else
+            printf '\nplatform :ios, '"'"'15.0'"'"'\n' >> "$PODFILE"
+          fi
+          echo "Podfile platform line:"
+          grep "platform :ios" "$PODFILE" || echo "(no platform line in Podfile)"
+
+      # ── Version stamp ───────────────────────────────────────────────────────
+      - name: Compute version
+        id: ver
+        run: |
+          VNAME="1.0.${GITHUB_RUN_NUMBER}"
+          VCODE="${GITHUB_RUN_NUMBER}"
+          sed -i '' "s/^version:.*/version: ${VNAME}+${VCODE}/" pubspec.yaml
+          echo "name=${VNAME}"  >> "$GITHUB_OUTPUT"
+          echo "code=${VCODE}"  >> "$GITHUB_OUTPUT"
+
+      # ── CocoaPods install ───────────────────────────────────────────────────
+      - name: pod install
+        run: |
+          cd ios
+          pod install --repo-update
+
+      # ── Build unsigned .app ─────────────────────────────────────────────────
+      - name: Build iOS release (no codesign)
+        run: |
+          flutter build ios \
+            --release \
+            --no-codesign \
+            --dart-define=FLUTTER_TARGET_PLATFORM=ios
+
+      # ── Package → .tipa (= IPA renommé, format TrollStore) ─────────────────
+      - name: Package .tipa for TrollStore
+        run: |
+          APP="build/ios/Release-iphoneos/Runner.app"
+          TIPA="WatchtowerReal-${{ steps.ver.outputs.name }}-b${{ steps.ver.outputs.code }}.tipa"
+
+          mkdir -p /tmp/tipa_work/Payload
+          cp -r "$APP" /tmp/tipa_work/Payload/
+
+          cd /tmp/tipa_work
+          zip -9 -r "/tmp/${TIPA}" Payload/
+
+          echo "TIPA: $(du -sh /tmp/${TIPA} | cut -f1)  →  /tmp/${TIPA}"
+          echo "tipa_name=${TIPA}" >> "$GITHUB_ENV"
+
+      # ── Upload artifact ─────────────────────────────────────────────────────
+      - name: Upload .tipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WatchtowerReal-${{ steps.ver.outputs.name }}-b${{ steps.ver.outputs.code }}-tipa
+          path: /tmp/${{ env.tipa_name }}
+          compression-level: 0
+          retention-days: 30
+
+      # ── Notifications ───────────────────────────────────────────────────────
+      - name: Notify ntfy (success)
+        if: success()
+        run: |
+          curl -s -X POST https://ntfy.sh/watchtower \
+            -H "Title: WatchtowerReal iOS ✅" \
+            -H "Priority: default" \
+            -H "Tags: apple,white_check_mark" \
+            -d "TIPA prêt — v${{ steps.ver.outputs.name }} b${{ steps.ver.outputs.code }} — ${{ github.event.head_commit.message }}" || true
+
+      - name: Notify ntfy (failure)
+        if: failure()
+        run: |
+          curl -s -X POST https://ntfy.sh/watchtower \
+            -H "Title: WatchtowerReal iOS ❌" \
+            -H "Priority: urgent" \
+            -H "Tags: apple,rotating_light" \
+            -d "iOS FAILED — sha ${{ github.sha }} — ${{ github.event.head_commit.message }}" || true
