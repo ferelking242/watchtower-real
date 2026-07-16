@@ -37,6 +37,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Create iOS project files
+        run: flutter create --platforms=ios .
+
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
 
