@@ -151,6 +151,15 @@ String _pickSourceId(Map<dynamic, dynamic> m) {
   return m.toString();
 }
 
+/// Pull the item list from any common server response envelope.
+List<dynamic> _extractItems(Map<String, dynamic> data) =>
+    data['items']   as List<dynamic>? ??
+    data['data']    as List<dynamic>? ??
+    data['results'] as List<dynamic>? ??
+    data['videos']  as List<dynamic>? ??
+    data['posts']   as List<dynamic>? ??
+    data['content'] as List<dynamic>? ?? [];
+
 // ─── Notifier ─────────────────────────────────────────────────────────────────
 
 class FeedNotifier extends AsyncNotifier<FeedState> {
@@ -190,26 +199,27 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
         throw Exception('Impossible de lister les sources: $e');
       }
 
-      // ── Étape 2 : charger les items populaires ────────────────────────────
-      List<dynamic> raw;
+      // ── Étape 2 : charger les items (popular → latest fallback) ──────────
+      List<dynamic> raw = [];
+
+      // Try popular first — any HTTP error (404, 500…) triggers latest fallback
       try {
         final data = await client.popular(sourceId).timeout(const Duration(seconds: 15));
-        raw = data['items'] as List<dynamic>? ??
-            data['data'] as List<dynamic>? ??
-            data['results'] as List<dynamic>? ??
-            data['videos'] as List<dynamic>? ??
-            data['posts'] as List<dynamic>? ??
-            data['content'] as List<dynamic>? ?? [];
-        if (raw.isEmpty) {
-          // Essaie latest si popular est vide
-          NtfyLogger.warn('popular/$sourceId vide → essai latest');
-          final fallback = await client.latest(sourceId).timeout(const Duration(seconds: 15));
-          raw = fallback['items'] as List<dynamic>? ??
-              fallback['data'] as List<dynamic>? ??
-              fallback['results'] as List<dynamic>? ?? [];
-        }
+        raw = _extractItems(data);
+        if (raw.isEmpty) NtfyLogger.warn('popular/$sourceId vide → essai latest');
       } catch (e) {
-        throw Exception('Erreur popular/$sourceId: $e');
+        NtfyLogger.warn('popular/$sourceId → $e — essai latest');
+      }
+
+      // Fallback to latest when popular returned nothing or errored
+      if (raw.isEmpty) {
+        try {
+          final fallback = await client.latest(sourceId).timeout(const Duration(seconds: 15));
+          raw = _extractItems(fallback);
+          NtfyLogger.info('latest/$sourceId → ${raw.length} items');
+        } catch (e) {
+          throw Exception('Erreur popular+latest/$sourceId: $e');
+        }
       }
 
       final items = raw
