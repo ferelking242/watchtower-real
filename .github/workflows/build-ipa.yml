@@ -40,6 +40,28 @@ jobs:
       - name: Create iOS project files
         run: flutter create --platforms=ios .
 
+      - name: Allow HTTP for local server (NSAllowsArbitraryLoads)
+        run: |
+          PLIST="ios/Runner/Info.plist"
+          if ! grep -q 'NSAllowsArbitraryLoads' "$PLIST"; then
+            # Insert ATS exception before the closing </dict></plist>
+            sed -i '' 's|</dict>\n</plist>||' "$PLIST" || true
+            cat >> "$PLIST" << 'PLIST_EOF'
+\t<key>NSAppTransportSecurity</key>
+\t<dict>
+\t\t<key>NSAllowsArbitraryLoads</key>
+\t\t<true/>
+\t\t<key>NSAllowsLocalNetworking</key>
+\t\t<true/>
+\t</dict>
+</dict>
+</plist>
+PLIST_EOF
+            echo "ATS patch applied"
+          else
+            echo "ATS already configured"
+          fi
+
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
 
