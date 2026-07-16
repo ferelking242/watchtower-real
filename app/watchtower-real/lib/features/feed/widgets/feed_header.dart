@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/tokens.dart';
 import '../providers/feed_provider.dart';
 
@@ -9,6 +10,8 @@ class FeedHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final activeTab = ref.watch(feedTabProvider);
+    final serverStatus = ref.watch(serverStatusProvider);
+    final isConnected = serverStatus != null && serverStatus.startsWith('✓');
 
     return Positioned(
       top: 0,
@@ -16,43 +19,112 @@ class FeedHeader extends ConsumerWidget {
       right: 0,
       child: SafeArea(
         bottom: false,
-        child: SizedBox(
-          height: space56,
-          child: Row(
-            children: [
-              const SizedBox(width: space16),
-              // Badge LIVE
-              _LiveBadge(),
-              const Spacer(),
-              // Tabs Suivis | Pour toi
-              _FeedTab(
-                label: 'Suivis',
-                index: 1,
-                activeTab: activeTab,
-                onTap: () => ref.read(feedTabProvider.notifier).state = 1,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: space56,
+              child: Row(
+                children: [
+                  const SizedBox(width: space16),
+                  // Badge LIVE
+                  _LiveBadge(),
+                  const Spacer(),
+                  // Tabs Suivis | Pour toi
+                  _FeedTab(
+                    label: 'Suivis',
+                    index: 1,
+                    activeTab: activeTab,
+                    onTap: () =>
+                        ref.read(feedTabProvider.notifier).state = 1,
+                  ),
+                  const SizedBox(width: space20),
+                  _FeedTab(
+                    label: 'Pour toi',
+                    index: 0,
+                    activeTab: activeTab,
+                    onTap: () =>
+                        ref.read(feedTabProvider.notifier).state = 0,
+                  ),
+                  const Spacer(),
+                  // Bouton de connexion serveur
+                  GestureDetector(
+                    onTap: () => context.push('/connect'),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 4),
+                      padding: const EdgeInsets.all(6),
+                      child: Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          const Icon(
+                            Icons.settings_rounded,
+                            color: colorTextPrimary,
+                            size: 24,
+                          ),
+                          // Point indicateur connexion
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isConnected
+                                    ? const Color(0xFF2ECC71)
+                                    : colorTextSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Loupe
+                  IconButton(
+                    icon: const Icon(
+                      Icons.search_rounded,
+                      color: colorTextPrimary,
+                      size: 26,
+                    ),
+                    onPressed: () {
+                      // TODO: go_router → /search
+                    },
+                  ),
+                ],
               ),
-              const SizedBox(width: space20),
-              _FeedTab(
-                label: 'Pour toi',
-                index: 0,
-                activeTab: activeTab,
-                onTap: () => ref.read(feedTabProvider.notifier).state = 0,
-              ),
-              const Spacer(),
-              // Loupe
-              IconButton(
-                icon: const Icon(
-                  Icons.search_rounded,
-                  color: colorTextPrimary,
-                  size: 26,
-                ),
-                onPressed: () {
-                  // TODO: go_router → /search
-                },
-              ),
-            ],
-          ),
+            ),
+            // Bannière statut serveur
+            if (serverStatus != null && !isConnected)
+              _ServerBanner(message: serverStatus),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bannière info serveur
+// ─────────────────────────────────────────────────────────────────────────────
+class _ServerBanner extends StatelessWidget {
+  const _ServerBanner({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: space16, vertical: 6),
+      color: const Color(0xCC1A1A1A),
+      child: Text(
+        message,
+        style: const TextStyle(
+          color: colorTextSecondary,
+          fontSize: 11,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

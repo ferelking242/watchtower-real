@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../features/feed/feed_screen.dart';
+import '../features/connect/connect_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -13,9 +14,12 @@ final router = GoRouter(
         child: FeedScreen(),
       ),
     ),
-    // TODO : ajouter les routes au fur et à mesure
-    // GoRoute(path: '/search', name: 'search', ...),
-    // GoRoute(path: '/profile', name: 'profile', ...),
-    // GoRoute(path: '/inbox', name: 'inbox', ...),
+    GoRoute(
+      path: '/connect',
+      name: 'connect',
+      pageBuilder: (context, state) => const MaterialPage(
+        child: ConnectScreen(),
+      ),
+    ),
   ],
 );
