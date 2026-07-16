@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/feed_item.dart';
@@ -23,7 +24,7 @@ final feedTabProvider = StateProvider<int>((ref) => 0);
 final serverStatusProvider = StateProvider<String?>((ref) => null);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Feed items — utilise l'API Watchtower si configurée, sinon mock
+// Feed items — utilise l'API Watchtower si configurée, sinon []
 // ─────────────────────────────────────────────────────────────────────────────
 final feedItemsProvider =
     AsyncNotifierProvider<FeedNotifier, List<FeedItem>>(FeedNotifier.new);
@@ -42,7 +43,10 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
 
     logger.log(_tag, 'Client configuré (${client.baseUrl}) → chargement réel');
     ref.read(serverStatusProvider.notifier).state = null;
-    return _loadFromServer(client);
+
+    // Récupérer l'ID de source sauvegardé (par défaut RedGIFs)
+    final config = await ref.read(remoteConfigProvider.future);
+    return _loadFromServer(client, config.selectedSourceId);
   }
 
   // ── Reload manuel ─────────────────────────────────────────────────────────
@@ -52,46 +56,54 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
   }
 
   // ── Chargement depuis le serveur ──────────────────────────────────────────
-  Future<List<FeedItem>> _loadFromServer(RemoteApiClient client) async {
-    // 1. Lister les sources
-    logger.log(_tag, 'GET /api/sources…');
-    final List<dynamic> sources;
+  Future<List<FeedItem>> _loadFromServer(
+      RemoteApiClient client, String sourceId) async {
+    // 1. Vérifier que la source existe dans la liste
+    logger.log(_tag, 'Source cible: $sourceId');
+    String resolvedSourceId = sourceId;
+    String resolvedSourceName = sourceId;
+
     try {
-      sources = await client.sources().timeout(const Duration(seconds: 15));
+      final sources = await client.sources().timeout(const Duration(seconds: 15));
       logger.log(_tag, '${sources.length} sources reçues');
-      for (var s in sources) {
-        logger.log(_tag,
-            '  source: id=${s["id"]} name="${s["name"]}" lang=${s["lang"]} type=${s["itemType"]}');
+      if (sources.isNotEmpty) {
+        // Chercher la source par ID
+        final match = sources.cast<Map<String, dynamic>>().where((s) {
+          return s['id']?.toString() == sourceId ||
+              s['name']?.toString() == sourceId;
+        }).firstOrNull;
+
+        if (match != null) {
+          resolvedSourceId   = match['id']?.toString() ?? sourceId;
+          resolvedSourceName = match['name'] as String? ?? resolvedSourceId;
+          logger.log(_tag, 'Source trouvée: "$resolvedSourceName" (id=$resolvedSourceId)');
+        } else {
+          // Source pas trouvée → prendre la première disponible
+          final first = sources.cast<Map<String, dynamic>>().first;
+          resolvedSourceId   = first['id']?.toString() ?? sourceId;
+          resolvedSourceName = first['name'] as String? ?? resolvedSourceId;
+          logger.log(_tag, 'Source $sourceId introuvable → fallback: "$resolvedSourceName"');
+        }
       }
-    } catch (e, st) {
-      logger.error(_tag, 'Erreur /api/sources: $e', st);
-      throw Exception('Impossible de contacter le serveur : $e');
+    } catch (e) {
+      logger.log(_tag, 'Impossible de lister les sources: $e — on essaie quand même avec $sourceId');
     }
 
-    if (sources.isEmpty) {
-      logger.log(_tag, 'Aucune source disponible');
-      throw Exception('Le serveur ne retourne aucune source (/api/sources vide)');
-    }
-
-    // 2. Choisir la meilleure source (préférer vidéo)
-    final source = _pickSource(sources);
-    final sourceId = _sourceId(source);
-    final sourceName = source['name'] as String? ?? sourceId;
-    logger.log(_tag, 'Source choisie: "$sourceName" (id=$sourceId)');
-
-    // 3. Charger popular, fallback latest sur toute erreur
-    final List<dynamic> rawItems = await _fetchItems(client, sourceId);
+    // 2. Charger popular, fallback latest sur toute erreur
+    final List<dynamic> rawItems =
+        await _fetchItems(client, resolvedSourceId);
     logger.log(_tag, '${rawItems.length} items bruts reçus');
 
     if (rawItems.isEmpty) {
       logger.log(_tag, 'Aucun item reçu');
-      throw Exception('La source "$sourceName" ne retourne aucun contenu');
+      throw Exception('La source "$resolvedSourceName" ne retourne aucun contenu');
     }
 
-    // 4. Résoudre les URLs vidéo pour les N premiers items
+    // 3. Résoudre les URLs vidéo pour les N premiers items
     const maxItems = 8;
     final toResolve = rawItems.take(maxItems).toList();
-    logger.log(_tag, 'Résolution des URLs vidéo pour ${toResolve.length} items…');
+    logger.log(_tag,
+        'Résolution des URLs vidéo pour ${toResolve.length} items…');
 
     final items = <FeedItem>[];
     for (var i = 0; i < toResolve.length; i++) {
@@ -100,71 +112,51 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
       logger.log(_tag,
           '[$i] link="${link.substring(0, link.length.clamp(0, 80))}"');
 
-      String videoUrl = '';
-      if (link.isNotEmpty) {
-        videoUrl = await _resolveVideoUrl(client, sourceId, link) ?? '';
+      // Essai 1 : extraire URL vidéo directement depuis le champ link (JSON embarqué)
+      String? videoUrl = _tryExtractVideoFromLink(link);
+
+      // Essai 2 : appel API /videos si pas de vidéo dans le link
+      if (videoUrl == null && link.isNotEmpty) {
+        videoUrl = await _resolveVideoUrl(client, resolvedSourceId, link) ?? '';
       }
 
-      if (videoUrl.isEmpty) {
+      if (videoUrl == null || videoUrl.isEmpty) {
         logger.log(_tag, '[$i] Pas de vidéo → ignoré');
         continue;
       }
 
-      items.add(_toFeedItem(raw, source, videoUrl, i));
+      items.add(_toFeedItem(raw, resolvedSourceName, videoUrl, i));
     }
 
     logger.log(_tag, '${items.length} items avec vidéo résolue');
 
     if (items.isEmpty) {
       logger.log(_tag, 'Aucune vidéo résolue');
-      throw Exception('Aucune vidéo jouable trouvée pour "$sourceName"');
+      throw Exception(
+          'Aucune vidéo jouable trouvée pour "$resolvedSourceName"');
     }
 
     ref.read(serverStatusProvider.notifier).state =
-        '✓ Connecté à "$sourceName" — ${items.length} vidéos';
+        '✓ Connecté à "$resolvedSourceName" — ${items.length} vidéos';
     return items;
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /// Choisit la meilleure source (préfère itemType=video/anime).
-  /// itemType dans mangayomi : 0=manga, 1=novel, 2=anime/video
-  Map<String, dynamic> _pickSource(List<dynamic> sources) {
-    final all = sources.cast<Map<String, dynamic>>();
-
-    // Priorité 1 : itemType numérique == 2 (anime/vidéo dans mangayomi)
-    for (final s in all) {
-      final t = s['itemType'];
-      if (t == 2 || t == '2') {
-        logger.log(_tag, '_pickSource → itemType==2: ${s["name"]}');
-        return s;
-      }
-    }
-
-    // Priorité 2 : champ texte contenant "video"/"anime"/"live"/"movie"
-    const videoTypes = {'video', 'anime', 'live', 'movie'};
-    for (final s in all) {
-      final type = (s['itemType'] as String? ?? '').toLowerCase();
-      if (videoTypes.any((t) => type.contains(t))) {
-        logger.log(_tag, '_pickSource → type text "$type": ${s["name"]}');
-        return s;
-      }
-    }
-
-    // Fallback : première source disponible
-    logger.log(_tag, '_pickSource → fallback first: ${all.first["name"]}');
-    return all.first;
-  }
-
-  /// Extrait l'identifiant à utiliser dans les routes API.
-  /// Préfère l'id (ex: "local") car c'est ce que le serveur utilise dans ses routes.
-  /// L'id est URL-safe (pas d'espace), contrairement au name ("Watchtower Local").
-  String _sourceId(Map<String, dynamic> source) {
-    final id = source['id'];
-    if (id != null && id.toString().isNotEmpty) return id.toString();
-    final name = source['name'] as String?;
-    if (name != null && name.isNotEmpty) return Uri.encodeComponent(name);
-    return '1';
+  /// Pour les sources qui embarquent les URLs vidéo directement dans le champ
+  /// "link" sous forme de JSON (ex: RedGIFs), extrait hd > sd > url sans appel réseau.
+  String? _tryExtractVideoFromLink(String link) {
+    if (link.isEmpty || !link.startsWith('{')) return null;
+    try {
+      final Map<String, dynamic> parsed = json.decode(link) as Map<String, dynamic>;
+      final hd  = parsed['hd']  as String?;
+      final sd  = parsed['sd']  as String?;
+      final url = parsed['url'] as String?;
+      if (hd != null && hd.isNotEmpty)  return hd;
+      if (sd != null && sd.isNotEmpty)  return sd;
+      if (url != null && url.isNotEmpty) return url;
+    } catch (_) {}
+    return null;
   }
 
   /// Charge popular, retombe sur latest sur TOUTE erreur (y compris 404)
@@ -199,14 +191,16 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
     }
   }
 
-  /// Extrait la liste d'items de la réponse API
+  /// Extrait la liste d'items de la réponse API.
+  /// Supporte les enveloppes courantes : list, mangas, items, data, results…
   List<dynamic> _extractItems(Map<String, dynamic> data) =>
-      data['mangas'] as List? ??
-      data['items'] as List? ??
-      data['data'] as List? ??
+      data['list']    as List? ??
+      data['mangas']  as List? ??
+      data['items']   as List? ??
+      data['data']    as List? ??
       data['results'] as List? ??
-      data['videos'] as List? ??
-      data['posts'] as List? ??
+      data['videos']  as List? ??
+      data['posts']   as List? ??
       data['content'] as List? ??
       [];
 
@@ -222,11 +216,6 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
           .timeout(const Duration(seconds: 20));
       final vids = data['videos'] as List? ?? [];
       logger.log(_tag, '${vids.length} streams directs');
-      for (var v in vids) {
-        final u = (v['url'] as String? ?? '');
-        logger.log(_tag,
-            '  stream: quality="${v["quality"]}" url="${u.substring(0, u.length.clamp(0, 80))}"');
-      }
       final url = _bestVideoUrl(vids);
       if (url != null) return url;
     } catch (e) {
@@ -242,25 +231,17 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
           .timeout(const Duration(seconds: 20));
 
       final chapters = detail['chapters'] as List? ??
-          detail['episodes'] as List? ??
+          detail['episodes']     as List? ??
           detail['chapter_list'] as List? ??
           [];
       logger.log(_tag, '${chapters.length} chapitres/épisodes dans detail');
-
       if (chapters.isEmpty) return null;
 
-      // Prendre le dernier épisode (le plus récent) ou le premier si un seul
-      final ep = chapters.length == 1 ? chapters.first : chapters.last;
-      final epUrl = ep['url'] as String? ??
-          ep['link'] as String? ??
-          ep['chapterUrl'] as String? ??
-          '';
-      if (epUrl.isEmpty) {
-        logger.log(_tag, 'Épisode sans URL');
-        return null;
-      }
-      logger.log(_tag,
-          'Episode URL: ${epUrl.substring(0, epUrl.length.clamp(0, 80))}');
+      final ep    = chapters.length == 1 ? chapters.first : chapters.last;
+      final epUrl = ep['url']        as String? ??
+                    ep['link']       as String? ??
+                    ep['chapterUrl'] as String? ?? '';
+      if (epUrl.isEmpty) return null;
 
       final vidData = await client
           .videos(sourceId, epUrl)
@@ -278,14 +259,11 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
   /// Choisit la meilleure qualité vidéo disponible
   String? _bestVideoUrl(List<dynamic> videos) {
     if (videos.isEmpty) return null;
-    // Préférer 1080p, 720p, 480p, sinon prendre le premier
     for (final pref in ['1080', '720', '480']) {
       for (final v in videos) {
-        final q = (v['quality'] as String? ?? '').toLowerCase();
-        if (q.contains(pref)) {
-          final url = v['url'] as String? ?? '';
-          if (url.isNotEmpty) return url;
-        }
+        final q   = (v['quality'] as String? ?? '').toLowerCase();
+        final url = v['url'] as String? ?? '';
+        if (q.contains(pref) && url.isNotEmpty) return url;
       }
     }
     final url = videos.first['url'] as String? ?? '';
@@ -295,42 +273,52 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
   /// Convertit un item brut de l'API en FeedItem
   FeedItem _toFeedItem(
       Map<String, dynamic> raw,
-      Map<String, dynamic> source,
+      String sourceName,
       String videoUrl,
       int index) {
-    final title = raw['name'] as String? ??
-        raw['title'] as String? ??
-        raw['chapter_name'] as String? ??
-        'Sans titre';
-    final thumbnail = raw['imageUrl'] as String? ??
-        raw['cover'] as String? ??
-        raw['thumbnail'] as String? ??
-        raw['image'] as String? ??
-        '';
-    final author = raw['author'] as String? ??
-        source['name'] as String? ??
-        'Watchtower';
-    final genreStr = raw['genre'] as String? ??
-        raw['genres'] as String? ??
-        raw['tags'] as String? ??
-        '';
+    // Thumbnail : préférer poster embarqué dans le JSON du link
+    String thumbnail = '';
+    final link = raw['link'] as String? ?? '';
+    if (link.startsWith('{')) {
+      try {
+        final parsed = json.decode(link) as Map<String, dynamic>;
+        thumbnail = parsed['poster'] as String? ?? '';
+      } catch (_) {}
+    }
+    if (thumbnail.isEmpty) {
+      thumbnail = raw['imageUrl'] as String? ??
+          raw['cover']      as String? ??
+          raw['thumbnail']  as String? ??
+          raw['image']      as String? ?? '';
+    }
+
+    final title  = raw['name']         as String? ??
+                   raw['title']        as String? ??
+                   raw['chapter_name'] as String? ?? 'Sans titre';
+    final author = raw['author']       as String? ??
+                   raw['creator']      as String? ??
+                   sourceName;
+    final genreStr = raw['genre']  as String? ??
+                     raw['genres'] as String? ??
+                     raw['tags']   as String? ??
+                     (raw['description'] as String? ?? '');
     final hashtags = _parseGenres(genreStr);
 
     // Stats décoratives (déterministiques selon le titre)
     final seed = title.hashCode.abs();
-    final rng = Random(seed + index);
+    final rng  = Random(seed + index);
 
     return FeedItem(
-      id: raw['link'] as String? ?? raw['url'] as String? ?? 'item_$index',
+      id: raw['link']  as String? ?? raw['url'] as String? ?? 'item_$index',
       videoUrl: videoUrl,
       thumbnailUrl: thumbnail,
       title: title,
       authorUsername: '@${author.toLowerCase().replaceAll(' ', '_')}',
       authorAvatar: thumbnail,
-      likes: 1000 + rng.nextInt(499000),
-      comments: 100 + rng.nextInt(9900),
-      shares: 200 + rng.nextInt(19800),
-      bookmarks: 50 + rng.nextInt(4950),
+      likes:     1000  + rng.nextInt(499000),
+      comments:  100   + rng.nextInt(9900),
+      shares:    200   + rng.nextInt(19800),
+      bookmarks: 50    + rng.nextInt(4950),
       hashtags: hashtags.take(4).toList(),
       soundName: '♪ ${title.split(' ').take(3).join(' ')} — Watchtower',
     );
@@ -339,7 +327,7 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
   List<String> _parseGenres(String genreStr) {
     if (genreStr.isEmpty) return ['watchtower'];
     return genreStr
-        .split(RegExp(r'[,|/]'))
+        .split(RegExp(r'[,|/·]'))
         .map((g) => g.trim().toLowerCase().replaceAll(' ', ''))
         .where((g) => g.isNotEmpty && g.length <= 20)
         .toList();
