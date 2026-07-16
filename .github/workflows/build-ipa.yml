@@ -1,0 +1,54 @@
+name: Build IPA (TrollStore)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: iOS IPA (TrollStore)
+    runs-on: macos-14
+
+    defaults:
+      run:
+        working-directory: app/watchtower-real
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.x'
+          channel: stable
+          cache: true
+
+      - name: Cache pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('app/watchtower-real/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package IPA (TrollStore)
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -qr watchtower-real.ipa Payload
+          echo "IPA: $(du -sh watchtower-real.ipa)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipa-trollstore
+          path: app/watchtower-real/watchtower-real.ipa
+          retention-days: 14
