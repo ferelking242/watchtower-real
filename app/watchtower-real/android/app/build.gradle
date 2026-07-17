@@ -7,6 +7,7 @@ plugins {
 android {
     namespace "com.watchtower.reel"
     compileSdkVersion 36
+    ndkVersion "28.2.13676358"
 
     compileOptions {
         coreLibraryDesugaringEnabled true

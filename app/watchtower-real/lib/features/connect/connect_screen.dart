@@ -28,7 +28,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   @override
   void initState() {
     super.initState();
-    final config = ref.read(remoteConfigProvider).valueOrNull;
+    final config = ref.read(remoteConfigProvider).asData?.value;
     _urlCtrl = TextEditingController(
         text: config?.baseUrl ?? 'http://192.168.1.70:4567');
     _keyCtrl = TextEditingController(text: config?.apiKey ?? '');

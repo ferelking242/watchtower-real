@@ -47,7 +47,7 @@ class RemoteConfigNotifier extends AsyncNotifier<RemoteConfig> {
       baseUrl:          baseUrl,
       apiKey:           apiKey,
       selectedSourceId: selectedSourceId ??
-          (state.valueOrNull?.selectedSourceId ?? kDefaultSourceId),
+          (state.asData?.value.selectedSourceId ?? kDefaultSourceId),
     ));
   }
 }
@@ -57,7 +57,7 @@ final remoteConfigProvider =
         RemoteConfigNotifier.new);
 
 final remoteClientProvider = Provider<RemoteApiClient?>((ref) {
-  final config = ref.watch(remoteConfigProvider).valueOrNull;
+  final config = ref.watch(remoteConfigProvider).asData?.value;
   if (config == null || !config.isConfigured) return null;
   return RemoteApiClient(baseUrl: config.baseUrl, apiKey: config.apiKey);
 });

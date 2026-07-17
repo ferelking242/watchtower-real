@@ -10,7 +10,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config    = ref.watch(remoteConfigProvider).valueOrNull;
+    final config    = ref.watch(remoteConfigProvider).asData?.value;
     final isConnected = config != null && config.baseUrl.isNotEmpty;
     final status    = ref.watch(serverStatusProvider);
 

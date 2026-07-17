@@ -36,7 +36,7 @@ class FeedHeader extends ConsumerWidget {
                     index: 1,
                     activeTab: activeTab,
                     onTap: () =>
-                        ref.read(feedTabProvider.notifier).state = 1,
+                        ref.read(feedTabProvider.notifier).update(1),
                   ),
                   const SizedBox(width: space20),
                   _FeedTab(
@@ -44,7 +44,7 @@ class FeedHeader extends ConsumerWidget {
                     index: 0,
                     activeTab: activeTab,
                     onTap: () =>
-                        ref.read(feedTabProvider.notifier).state = 0,
+                        ref.read(feedTabProvider.notifier).update(0),
                   ),
                   const Spacer(),
                   // Bouton de connexion serveur

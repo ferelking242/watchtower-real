@@ -39,7 +39,7 @@ class FeedScreen extends HookConsumerWidget {
 
     // ── Gère le pool à chaque changement d'index ou de liste ─────────────────
     useEffect(() {
-      final items = feedAsync.valueOrNull;
+      final items = feedAsync.asData?.value;
       if (items == null || items.isEmpty) return null;
 
       final alive = <int>{};
@@ -100,7 +100,7 @@ class FeedScreen extends HookConsumerWidget {
                 physics:         const _SnapScrollPhysics(),
                 itemCount:       items.length,
                 onPageChanged: (i) {
-                  ref.read(currentFeedIndexProvider.notifier).state = i;
+                  ref.read(currentFeedIndexProvider.notifier).update(i);
                 },
                 itemBuilder: (context, index) {
                   final player = pool.value[index];
