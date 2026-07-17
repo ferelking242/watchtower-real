@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../core/theme/tokens.dart';
 import 'models/feed_item.dart';
@@ -10,70 +11,129 @@ import 'package:go_router/go_router.dart';
 import 'widgets/feed_header.dart';
 import 'widgets/feed_page.dart';
 
+/// Nombre de Players gardés en vie autour de l'index actif.
+/// Ex: _kPoolRadius = 1 → on garde [i-1, i, i+1].
+const int _kPoolRadius = 1;
+
 class FeedScreen extends HookConsumerWidget {
   const FeedScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final feedAsync = ref.watch(feedItemsProvider);
-    final pageController = usePageController();
-    final currentIndex = ref.watch(currentFeedIndexProvider);
+    final feedAsync   = ref.watch(feedItemsProvider);
+    final currentIdx  = ref.watch(currentFeedIndexProvider);
+    final pageCtrl    = usePageController();
 
-    // Fond noir + barre de statut blanche pour le feed
+    // ── Pool de Players (map index → Player) ──────────────────────────────────
+    // On garde alive les players dans [currentIdx-radius, currentIdx+radius].
+    final pool = useRef<Map<int, Player>>({});
+
+    // Barre de statut blanche sur fond noir
     useEffect(() {
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-        ),
-      );
+      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ));
       return null;
+    }, const []);
+
+    // ── Gère le pool à chaque changement d'index ou de liste ─────────────────
+    useEffect(() {
+      final items = feedAsync.valueOrNull;
+      if (items == null || items.isEmpty) return null;
+
+      final alive = <int>{};
+      for (int i = currentIdx - _kPoolRadius;
+          i <= currentIdx + _kPoolRadius;
+          i++) {
+        if (i < 0 || i >= items.length) continue;
+        alive.add(i);
+
+        // Créer et ouvrir le player s'il n'existe pas encore
+        if (!pool.value.containsKey(i)) {
+          final p = Player();
+          final url = items[i].videoUrl;
+          if (url.isNotEmpty) {
+            p.open(Media(url), play: false);
+          }
+          pool.value[i] = p;
+        }
+      }
+
+      // Disposer les players hors de la fenêtre
+      final toDispose = pool.value.keys.toList()
+        ..retainWhere((k) => !alive.contains(k));
+      for (final k in toDispose) {
+        pool.value.remove(k)?.dispose();
+      }
+
+      return null;
+    }, [currentIdx, feedAsync]);
+
+    // ── Dispose tout à la destruction du widget ───────────────────────────────
+    useEffect(() {
+      return () {
+        for (final p in pool.value.values) {
+          p.dispose();
+        }
+        pool.value.clear();
+      };
     }, const []);
 
     return Scaffold(
       backgroundColor: colorBgBase,
       extendBody: true,
       body: feedAsync.when(
-        loading: () => _FeedSkeleton(),
-        error: (e, _) => _FeedError(message: e.toString()),
-        data: (items) => Stack(
-          children: [
-            // ── PageView vertical ──────────────────────────────────────────
-            PageView.builder(
-              controller: pageController,
-              scrollDirection: Axis.vertical,
-              physics: const _SnapScrollPhysics(),
-              itemCount: items.length,
-              onPageChanged: (i) {
-                ref.read(currentFeedIndexProvider.notifier).state = i;
-              },
-              itemBuilder: (context, index) {
-                return FeedPage(
-                  item: items[index],
-                  isActive: currentIndex == index,
-                );
-              },
-            ),
+        loading: () => const _FeedSkeleton(),
+        error:   (e, _) => _FeedError(message: e.toString()),
+        data: (items) {
+          if (items.isEmpty) {
+            return const _FeedEmpty();
+          }
 
-            // ── Header flottant ────────────────────────────────────────────
-            const FeedHeader(),
+          return Stack(
+            children: [
+              // ── PageView vertical ──────────────────────────────────────────
+              PageView.builder(
+                controller:      pageCtrl,
+                scrollDirection: Axis.vertical,
+                physics:         const _SnapScrollPhysics(),
+                itemCount:       items.length,
+                onPageChanged: (i) {
+                  ref.read(currentFeedIndexProvider.notifier).state = i;
+                },
+                itemBuilder: (context, index) {
+                  final player = pool.value[index];
+                  if (player == null) {
+                    // Player pas encore créé (rare — transition rapide)
+                    return Container(color: colorBgBase);
+                  }
+                  return FeedPage(
+                    item:     items[index],
+                    player:   player,
+                    isActive: currentIdx == index,
+                  );
+                },
+              ),
 
-            // ── Bottom Nav ─────────────────────────────────────────────────
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _FeedBottomNav(),
-            ),
-          ],
-        ),
+              // ── Header flottant ────────────────────────────────────────────
+              const FeedHeader(),
+
+              // ── Bottom Nav ─────────────────────────────────────────────────
+              const Positioned(
+                left: 0, right: 0, bottom: 0,
+                child: _FeedBottomNav(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Physique snap (une vidéo à la fois)
+// Physique snap (une page à la fois)
 // ─────────────────────────────────────────────────────────────────────────────
 class _SnapScrollPhysics extends ScrollPhysics {
   const _SnapScrollPhysics({super.parent});
@@ -87,7 +147,7 @@ class _SnapScrollPhysics extends ScrollPhysics {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Bottom Navigation Bar (transparent sur le feed)
+// Bottom Navigation Bar
 // ─────────────────────────────────────────────────────────────────────────────
 class _FeedBottomNav extends StatelessWidget {
   const _FeedBottomNav();
@@ -98,7 +158,7 @@ class _FeedBottomNav extends StatelessWidget {
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
+          end:   Alignment.topCenter,
           colors: [Color(0xB3000000), Colors.transparent],
         ),
       ),
@@ -109,11 +169,12 @@ class _FeedBottomNav extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavItem(icon: Icons.home_rounded, label: 'Accueil', active: true),
-              _NavItem(icon: Icons.group_rounded, label: 'Amis'),
-              _CreateButton(),
-              _NavItem(icon: Icons.chat_bubble_rounded, label: 'Messages'),
-              _NavItem(icon: Icons.person_rounded, label: 'Profil'),
+              _NavItem(icon: Icons.home_rounded,    label: 'Accueil', active: true),
+              _NavItem(icon: Icons.group_rounded,   label: 'Amis'),
+              const _CreateButton(),
+              _NavItem(icon: Icons.inbox_rounded,   label: 'Boîte'),
+              _NavItem(icon: Icons.person_rounded,  label: 'Profil',
+                  onTap: () => context.push('/profile')),
             ],
           ),
         ),
@@ -123,205 +184,126 @@ class _FeedBottomNav extends StatelessWidget {
 }
 
 class _NavItem extends StatelessWidget {
-  const _NavItem({required this.icon, required this.label, this.active = false});
-
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    this.active = false,
+    this.onTap,
+  });
   final IconData icon;
   final String label;
   final bool active;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          color: active ? colorTextPrimary : colorTextSecondary,
-          size: 26,
+    final color = active ? colorTextPrimary : colorTextSecondary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(color: color, fontSize: 10,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400)),
+          ],
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            color: active ? colorTextPrimary : colorTextSecondary,
-            fontSize: 10,
-            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
-/// Bouton central bicolore (cyan + rouge) avec icône +
 class _CreateButton extends StatelessWidget {
+  const _CreateButton();
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 44,
-          height: 30,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Rectangle cyan (gauche)
-              Positioned(
-                left: 0,
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: const BoxDecoration(
-                    color: colorBrandCyan,
-                    borderRadius: BorderRadius.horizontal(
-                      left: Radius.circular(6),
-                    ),
-                  ),
-                ),
-              ),
-              // Rectangle rouge (droite)
-              Positioned(
-                right: 0,
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: const BoxDecoration(
-                    color: colorBrand,
-                    borderRadius: BorderRadius.horizontal(
-                      right: Radius.circular(6),
-                    ),
-                  ),
-                ),
-              ),
-              // Bouton blanc central avec +
-              Container(
-                width: 30,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: colorTextPrimary,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Icon(Icons.add_rounded,
-                    color: colorTextPrimaryDark, size: 20),
-              ),
-            ],
-          ),
+    return Container(
+      width: 42,
+      height: 28,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF69C9D0), Color(0xFFEE1D52)],
         ),
-        const SizedBox(height: 2),
-        const Text(
-          '',
-          style: TextStyle(fontSize: 10),
-        ),
-      ],
+      ),
+      child: const Icon(Icons.add, color: Colors.white, size: 20),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Skeleton (chargement)
+// États vides / erreur / squelette
 // ─────────────────────────────────────────────────────────────────────────────
 class _FeedSkeleton extends StatelessWidget {
+  const _FeedSkeleton();
+
   @override
   Widget build(BuildContext context) {
     return Skeletonizer(
       enabled: true,
-      effect: const ShimmerEffect(
-        baseColor: Color(0xFF1C1C1E),
-        highlightColor: Color(0xFF2C2C2E),
-      ),
-      child: Container(
-        color: colorBgCard,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(height: 15, width: 120, color: Colors.white),
-              const SizedBox(height: 8),
-              Container(height: 13, width: 220, color: Colors.white),
-              const SizedBox(height: 4),
-              Container(height: 13, width: 180, color: Colors.white),
-              const SizedBox(height: 12),
-              Container(height: 13, width: 160, color: Colors.white),
-            ],
-          ),
+      child: Container(color: colorBgCard),
+    );
+  }
+}
+
+class _FeedError extends StatelessWidget {
+  const _FeedError({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 48, color: colorTextSecondary),
+            const SizedBox(height: 16),
+            Text('Impossible de charger le feed',
+                style: const TextStyle(color: colorTextPrimary, fontSize: 16,
+                    fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(message, style: const TextStyle(color: colorTextSecondary, fontSize: 13),
+                textAlign: TextAlign.center),
+          ],
         ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Erreur — avec boutons Réessayer + Configurer (fix écran bloqué iOS)
-// ─────────────────────────────────────────────────────────────────────────────
-class _FeedError extends ConsumerWidget {
-  const _FeedError({required this.message});
-  final String message;
+class _FeedEmpty extends StatelessWidget {
+  const _FeedEmpty();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline_rounded,
-                color: colorBrand, size: 48),
-            const SizedBox(height: 12),
-            const Text(
-              'Impossible de charger le feed',
-              style: TextStyle(
-                  color: colorTextPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: const TextStyle(color: colorTextSecondary, fontSize: 12),
-              textAlign: TextAlign.center,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 28),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => ref.invalidate(feedItemsProvider),
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Réessayer'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorBrand,
-                  foregroundColor: colorTextPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => context.push('/connect'),
-                icon: const Icon(Icons.settings_rounded, size: 18),
-                label: const Text('Configurer le serveur'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colorTextPrimary,
-                  side: const BorderSide(color: colorTextSecondary),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.videocam_off_rounded, size: 48, color: colorTextSecondary),
+          const SizedBox(height: 16),
+          const Text('Aucun contenu disponible',
+              style: TextStyle(color: colorTextPrimary, fontSize: 16,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const Text('Configure un serveur Watchtower pour voir du contenu.',
+              style: TextStyle(color: colorTextSecondary, fontSize: 13),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => GoRouter.of(context).push('/connect'),
+            icon: const Icon(Icons.settings_rounded),
+            label: const Text('Configurer le serveur'),
+          ),
+        ],
       ),
     );
   }

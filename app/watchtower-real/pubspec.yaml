@@ -1,7 +1,5 @@
 name: watchtower_real
-description: >
-  Watchtower Real — TikTok-style vertical feed UI for Watchtower.
-  UI-only; same tech stack as the main watchtower app for seamless merge.
+description: UI TikTok-style pour Watchtower. Se fusionne dans watchtower/lib/ui/tiktok/.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -14,27 +12,24 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  # ── State management (same versions as watchtower) ───────────────────────────
+  # ── State management — mêmes versions que watchtower ────────────────────────
   flutter_riverpod: ^3.1.0
-  riverpod_annotation: ^4.0.0
-  riverpod: ^3.1.0
-  hooks_riverpod: ^3.0.0
-  flutter_hooks: ^0.21.0
+  riverpod:          ^3.1.0
+  hooks_riverpod:    ^3.0.0
+  flutter_hooks:     ^0.21.0
 
-  # ── Navigation (same as watchtower) ─────────────────────────────────────────
+  # ── Navigation ───────────────────────────────────────────────────────────────
   go_router: ^17.2.0
 
   # ── Network ──────────────────────────────────────────────────────────────────
   http: ^1.6.0
 
-  # ── Storage — same as watchtower (Isar) ──────────────────────────────────────
-  isar_community: ^3.3.2
-  isar_community_flutter_libs: ^3.3.2
-  hive: ^2.2.3
+  # ── Storage — même stack que watchtower ──────────────────────────────────────
+  hive:         ^2.2.3
   hive_flutter: ^1.1.0
   shared_preferences: ^2.3.5
 
-  # ── Video — same fork as watchtower (media_kit) ──────────────────────────────
+  # ── Video — même fork media_kit que watchtower ───────────────────────────────
   media_kit:
     git:
       url: https://github.com/kodjodevf/media-kit.git
@@ -51,27 +46,25 @@ dependencies:
       path: libs/universal/media_kit_libs_video
       ref: f5796d287b642548e7e703bbc592f01dd7b1befe
 
-  # ── UI (same as watchtower) ──────────────────────────────────────────────────
-  flex_color_scheme: ^8.3.1
+  # ── UI ───────────────────────────────────────────────────────────────────────
+  flex_color_scheme:    ^8.3.1
   cached_network_image: ^3.3.1
-  extended_image: ^10.0.0
-  skeletonizer: ^2.1.0+1
-  shimmer: ^3.0.0
-  marquee: ^2.2.3
-  cupertino_icons: ^1.0.9
+  skeletonizer:         ^2.1.0+1
+  shimmer:              ^3.0.0
+  marquee:              ^2.2.3
+  cupertino_icons:      ^1.0.9
 
   # ── Utils ────────────────────────────────────────────────────────────────────
-  path_provider: ^2.1.5
+  path_provider:    ^2.1.5
   package_info_plus: ^9.0.1
-  intl: ^0.20.2
+  intl:             ^0.20.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  build_runner: ^2.4.15
-  isar_community_generator: ^3.3.2
-  riverpod_generator: ^3.0.0
+  # build_runner et générateurs retirés : pas de codegen actif dans watchtower-real.
+  # Les ajouter uniquement quand on utilisera @riverpod ou @IsarCollection.
 
 flutter:
   uses-material-design: true

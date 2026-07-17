@@ -1,53 +1,74 @@
-# Watchtower Real
+# Watchtower Real — UI TikTok
 
-TikTok-style vertical feed UI for **[Watchtower](https://github.com/ferelking242/watchtower)**.
+Feed vertical TikTok-style pour **[Watchtower](https://github.com/ferelking242/watchtower)**.
 
-> **This is UI-only.** The server, extensions, database, and all backend logic live in the main [watchtower](https://github.com/ferelking242/watchtower) repo.  
-> `watchtower-real` is developed separately for fast iteration and will be merged into `watchtower` once validated.
+> **UI-only.** Serveur, extensions, DB, Rust, Go → dans [ferelking242/watchtower](https://github.com/ferelking242/watchtower).  
+> Développé séparément pour itérer vite. À la fin, le code fusionne dans `watchtower/lib/ui/tiktok/`.
 
 ---
 
-## What this is
+## Stack identique à watchtower
 
-A lightweight Flutter app that displays content from a running Watchtower instance in a TikTok-style vertical feed. No embedded JS engine, no Rust, no Go — just UI + HTTP.
-
-## What this is NOT
-
-- ❌ The server (→ `watchtower/server/`)
-- ❌ The extension engine (→ `watchtower/lib/eval/`)
-- ❌ The database (→ `watchtower` uses Isar)
-- ❌ The torrent client (→ `watchtower/go/`)
-
-## How it connects
-
-```
-watchtower-real UI
-       │  HTTP (REST API)
-       ▼
-watchtower embedded server  (port 4567 on device)
-       OR
-watchtower headless server  (port 8080 on cloud)
-```
-
-## Same tech stack as watchtower
-
-`watchtower-real` uses the exact same packages as `watchtower` so the merge is seamless:
+Même packages, mêmes versions → fusion sans conflit.
 
 | Package | Version |
 |---|---|
 | `flutter_riverpod` | `^3.1.0` |
-| `isar_community` | `^3.3.2` |
-| `media_kit` | git (kodjodevf fork) |
+| `media_kit` (+ video + libs) | git — kodjodevf fork |
+| `hive` + `hive_flutter` | `^2.2.3` |
 | `flex_color_scheme` | `^8.3.1` |
 | `go_router` | `^17.2.0` |
 
-## Merge into watchtower
+---
 
-At build time, a GitHub Actions workflow copies the `lib/modules/feed/` module from `watchtower-real` into `watchtower/lib/modules/feed/`.  
-When running inside watchtower:
-- No separate DB — uses watchtower's Isar instance directly
-- No separate cache — uses watchtower's existing HTTP cache
-- No separate prefs — uses watchtower's Hive boxes
+## Architecture UI dans watchtower (après fusion)
+
+```
+watchtower/lib/
+├── modules/          ← features existants (anime, manga, music, player…)
+├── ui/               ← shells UI — nouveau dossier
+│   ├── netflix/      ← UI actuelle : grille de cartes, bibliothèque, navigation classique
+│   │   └── shell.dart
+│   └── tiktok/       ← ce repo : feed vertical plein-écran  ← ICI
+│       ├── feed_screen.dart
+│       ├── feed_page.dart        ← Player media_kit, pool preload
+│       ├── providers/
+│       │   └── feed_provider.dart
+│       ├── models/
+│       │   └── feed_item.dart
+│       └── widgets/
+│           ├── feed_header.dart
+│           ├── feed_sidebar.dart
+│           └── feed_overlay_bottom.dart
+├── eval/             ← moteur d'extensions JS/Dart (partagé)
+├── remote/           ← serveur embarqué shelf (partagé)
+└── services/         ← réseau, DB, downloads (partagé)
+```
+
+**Logique de switch UI** — dans `watchtower/lib/router/` :
+- Un `StateProvider<UiShell>` (netflix | tiktok) persisté dans Hive
+- Le routeur choisit le shell selon la préférence
+- Les deux shells lisent la même Isar DB, les mêmes providers, le même cache
+
+**Au moment de la fusion :**
+- `lib/features/feed/` → `lib/ui/tiktok/`
+- Remplace `RemoteApiClient` par les providers Isar/eval existants
+- Supprime `hive` standalone → utilise les boxes Hive de watchtower
+- Supprime `shared_preferences` → utilise les prefs Hive de watchtower
+
+---
+
+## Preloading (implémenté)
+
+`FeedScreen` maintient un pool de `Player` (media_kit) :
+- Fenêtre : `[index-1, index, index+1]`
+- Page active : `player.play()`
+- Pages adjacentes : `player.open(url, play: false)` (buffering en avance)
+- Pages hors fenêtre : `player.dispose()`
+
+→ Zéro latence au scroll entre les vidéos.
+
+---
 
 ## Build
 
@@ -58,4 +79,28 @@ flutter pub get
 flutter run
 ```
 
-CI builds the APK + IPA automatically on every push to `main`.
+CI build APK + IPA sur chaque push sur `main`.
+
+---
+
+## Structure actuelle du code
+
+```
+lib/
+├── main.dart                  ← MediaKit.ensureInitialized() + Hive + Riverpod
+├── app.dart                   ← MaterialApp.router
+├── router/router.dart         ← GoRouter
+├── core/theme/                ← tokens, thème dark
+├── remote/                    ← RemoteApiClient HTTP → serveur watchtower
+├── utils/log/                 ← logger fichier
+└── features/
+    └── feed/
+        ├── feed_screen.dart   ← PageView vertical + pool Players
+        ├── models/feed_item.dart
+        ├── providers/feed_provider.dart
+        └── widgets/
+            ├── feed_page.dart         ← media_kit Video + thumbnail fallback
+            ├── feed_header.dart
+            ├── feed_sidebar.dart      ← like, comment, share, bookmark
+            └── feed_overlay_bottom.dart
+```
