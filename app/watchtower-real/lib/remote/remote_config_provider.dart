@@ -6,6 +6,11 @@ const _kBaseUrl         = 'wt_real_server_url';
 const _kApiKey          = 'wt_real_api_key';
 const _kSelectedSource  = 'wt_real_source_id';
 
+/// URL du serveur Watchtower hébergé sur Replit.
+/// Pré-configuré — le feed fonctionne sans saisie manuelle.
+const kDefaultServerUrl =
+    'https://036ada93-f714-4010-8afa-e2735af81428-00-2pirsjfgvm9v3.picard.replit.dev';
+
 /// ID RedGIFs par défaut — visible en mode vidéo sans config manuelle.
 const kDefaultSourceId = '1920000001';
 
@@ -26,7 +31,7 @@ class RemoteConfigNotifier extends AsyncNotifier<RemoteConfig> {
   Future<RemoteConfig> build() async {
     final prefs = await SharedPreferences.getInstance();
     return RemoteConfig(
-      baseUrl:          prefs.getString(_kBaseUrl)        ?? '',
+      baseUrl:          prefs.getString(_kBaseUrl)        ?? kDefaultServerUrl,
       apiKey:           prefs.getString(_kApiKey)         ?? '',
       selectedSourceId: prefs.getString(_kSelectedSource) ?? kDefaultSourceId,
     );
