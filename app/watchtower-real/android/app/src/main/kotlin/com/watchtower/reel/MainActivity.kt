@@ -1,4 +1,4 @@
-package com.watchtower.real
+package com.watchtower.reel
 
 import io.flutter.embedding.android.FlutterActivity
 
