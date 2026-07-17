@@ -59,6 +59,25 @@ dependencies:
   package_info_plus: ^9.0.1
   intl:             ^0.20.2
 
+dependency_overrides:
+  # Force tous les packages media_kit à utiliser exactement le même commit.
+  # Sans ça, media_kit_video résout media_kit à HEAD → conflit avec notre pin.
+  media_kit:
+    git:
+      url: https://github.com/kodjodevf/media-kit.git
+      path: media_kit
+      ref: f5796d287b642548e7e703bbc592f01dd7b1befe
+  media_kit_video:
+    git:
+      url: https://github.com/kodjodevf/media-kit.git
+      path: media_kit_video
+      ref: f5796d287b642548e7e703bbc592f01dd7b1befe
+  media_kit_libs_video:
+    git:
+      url: https://github.com/kodjodevf/media-kit.git
+      path: libs/universal/media_kit_libs_video
+      ref: f5796d287b642548e7e703bbc592f01dd7b1befe
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
