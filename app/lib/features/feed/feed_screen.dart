@@ -6,6 +6,7 @@ import 'package:watchtower_real/core/theme/tokens.dart';
 import 'package:watchtower_real/features/feed/providers/feed_provider.dart';
 import 'package:watchtower_real/features/feed/widgets/feed_header.dart';
 import 'package:watchtower_real/features/feed/widgets/feed_page.dart';
+import 'package:watchtower_real/features/feed/widgets/live_stories_bar.dart';
 
 class FeedScreen extends ConsumerStatefulWidget {
   const FeedScreen({super.key});
@@ -18,6 +19,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   final _controller = PageController();
   int _currentIndex = 0;
   int _navIndex = 0;
+  // 0 = Suivis, 1 = Pour toi
+  int _feedTab = 1;
 
   @override
   void initState() {
@@ -122,15 +125,27 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   },
                 ),
 
-                // ── Header overlay ─────────────────────────────────
-                const Positioned(
+                // ── Header overlay ───────────────────────────────────
+                Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: FeedHeader(),
+                  child: FeedHeader(
+                    onTabChanged: (tab) => setState(() => _feedTab = tab),
+                  ),
                 ),
 
-                // ── Error banner (non-blocking) ────────────────────
+                // ── Live stories (Suivis tab) ────────────────────────
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  top: _feedTab == 0 ? MediaQuery.of(context).padding.top + 44 : -110,
+                  left: 0,
+                  right: 0,
+                  child: const LiveStoriesBar(),
+                ),
+
+                // ── Error banner (non-blocking) ──────────────────────
                 if (feedState.error != null)
                   Positioned(
                     top: 80,
@@ -216,11 +231,11 @@ class _BottomNav extends StatelessWidget {
           _NavItem(
             icon: Icons.people_alt_rounded,
             iconOff: Icons.people_alt_outlined,
-            label: 'Ami(e)s',
+            label: 'Amis',
             index: 1,
             current: currentIndex,
             onTap: onTap,
-            badge: 58,
+            badge: 69,
           ),
           // Centre + button
           Expanded(
@@ -234,11 +249,11 @@ class _BottomNav extends StatelessWidget {
           _NavItem(
             icon: Icons.chat_bubble_rounded,
             iconOff: Icons.chat_bubble_outline_rounded,
-            label: 'Messages',
+            label: 'Boîte de réception',
             index: 3,
             current: currentIndex,
             onTap: onTap,
-            badge: 6,
+            badge: 8,
           ),
           _NavItem(
             icon: Icons.person_rounded,
@@ -322,6 +337,8 @@ class _NavItem extends StatelessWidget {
                 fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                 height: 1.1,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

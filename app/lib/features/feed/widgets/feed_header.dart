@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// TikTok-style top header:
-/// [LIVE] [Explorer] [Suivis] [Pour toi] [🔍]
+/// TikTok-style top header: [LIVE] [Suivis] [Pour toi] [🔍]
 class FeedHeader extends StatefulWidget {
-  const FeedHeader({super.key});
+  const FeedHeader({super.key, this.onTabChanged});
+  final void Function(int tab)? onTabChanged;
 
   @override
   State<FeedHeader> createState() => _FeedHeaderState();
 }
 
 class _FeedHeaderState extends State<FeedHeader> {
-  // 0=Explorer, 1=Suivis, 2=Pour toi
-  int _tab = 2;
+  // 0 = Suivis, 1 = Pour toi
+  int _tab = 1;
 
   @override
   Widget build(BuildContext context) {
@@ -25,11 +25,12 @@ class _FeedHeaderState extends State<FeedHeader> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ── LIVE badge ─────────────────────────────────────────
+              // ── LIVE badge ──────────────────────────────────────────────
               GestureDetector(
                 onTap: () => context.push('/live'),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.white, width: 1.5),
                     borderRadius: BorderRadius.circular(3),
@@ -49,19 +50,30 @@ class _FeedHeaderState extends State<FeedHeader> {
 
               const Spacer(),
 
-              // ── Tabs ───────────────────────────────────────────────
-              _TabItem(label: 'Explorer', index: 0, current: _tab,
-                  onTap: (i) => setState(() => _tab = i)),
-              const SizedBox(width: 20),
-              _TabItem(label: 'Suivis', index: 1, current: _tab,
-                  onTap: (i) => setState(() => _tab = i)),
-              const SizedBox(width: 20),
-              _TabItem(label: 'Pour toi', index: 2, current: _tab,
-                  onTap: (i) => setState(() => _tab = i)),
+              // ── Tabs ────────────────────────────────────────────────────
+              _TabItem(
+                label: 'Suivis',
+                index: 0,
+                current: _tab,
+                onTap: (i) {
+                  setState(() => _tab = i);
+                  widget.onTabChanged?.call(i);
+                },
+              ),
+              const SizedBox(width: 22),
+              _TabItem(
+                label: 'Pour toi',
+                index: 1,
+                current: _tab,
+                onTap: (i) {
+                  setState(() => _tab = i);
+                  widget.onTabChanged?.call(i);
+                },
+              ),
 
               const Spacer(),
 
-              // ── Search ─────────────────────────────────────────────
+              // ── Search ──────────────────────────────────────────────────
               GestureDetector(
                 onTap: () => context.push('/search'),
                 child: const Icon(Icons.search_rounded,
@@ -101,15 +113,16 @@ class _TabItem extends StatelessWidget {
             label,
             style: TextStyle(
               color: active ? Colors.white : Colors.white54,
-              fontSize: active ? 16 : 15,
+              fontSize: active ? 17 : 15,
               fontWeight: active ? FontWeight.w700 : FontWeight.w400,
               height: 1.1,
+              shadows: const [Shadow(blurRadius: 4, color: Colors.black54)],
             ),
           ),
           const SizedBox(height: 4),
           AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: active ? 18 : 0,
+            width: active ? 20 : 0,
             height: 2,
             decoration: BoxDecoration(
               color: Colors.white,

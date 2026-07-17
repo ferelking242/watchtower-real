@@ -6,25 +6,18 @@ import 'package:watchtower_real/features/inbox/inbox_screen.dart';
 import 'package:watchtower_real/features/live/live_multi_screen.dart';
 import 'package:watchtower_real/features/profile/profile_screen.dart';
 import 'package:watchtower_real/features/search/search_screen.dart';
-import 'package:watchtower_real/remote/remote_config_provider.dart';
+import 'package:watchtower_real/splash_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
-    redirect: (context, state) async {
-      // If navigating to connect screen, let it through
-      if (state.matchedLocation == '/connect') return null;
-
-      // Check if configured — allow unconfigured (demo mode passes through)
-      // Only hard-redirect to /connect on first launch (no saved config at all)
-      final config = ref.read(remoteConfigProvider);
-
-      // While config is loading, go to feed — it handles demo mode
-      return null;
-    },
     routes: [
       GoRoute(
         path: '/',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/feed',
         builder: (context, state) => const FeedScreen(),
       ),
       GoRoute(

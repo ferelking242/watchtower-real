@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:watchtower_real/core/theme/tokens.dart';
-import 'package:watchtower_real/core/widgets/follow_button.dart';
 import 'package:watchtower_real/core/widgets/video_thumbnail.dart';
 import 'package:watchtower_real/features/search/search_filters_sheet.dart';
 
@@ -33,6 +32,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen>
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Tab bar + filter icon
         Container(
           color: Colors.white,
           child: Row(
@@ -42,10 +42,13 @@ class _SearchResultsScreenState extends State<SearchResultsScreen>
                   controller: _tabs,
                   isScrollable: true,
                   labelColor: Colors.black,
-                  unselectedLabelColor: AppTokens.colorTextSecondaryDark,
+                  unselectedLabelColor: const Color(0xFF8A8A8A),
                   indicatorColor: Colors.black,
                   indicatorWeight: 2,
-                  labelStyle: AppTokens.labelM,
+                  labelStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600),
+                  unselectedLabelStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w400),
                   tabs: const [
                     Tab(text: 'Top'),
                     Tab(text: 'Vidéos'),
@@ -56,9 +59,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen>
                   ],
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.tune, color: Colors.black),
-                onPressed: () => showModalBottomSheet(
+              GestureDetector(
+                onTap: () => showModalBottomSheet(
                   context: context,
                   isScrollControlled: true,
                   shape: const RoundedRectangleBorder(
@@ -66,6 +68,10 @@ class _SearchResultsScreenState extends State<SearchResultsScreen>
                         top: Radius.circular(AppTokens.radiusLg)),
                   ),
                   builder: (_) => const SearchFiltersSheet(),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Icon(Icons.tune_rounded, color: Colors.black, size: 22),
                 ),
               ),
             ],
@@ -94,39 +100,214 @@ class _TopTab extends StatelessWidget {
   const _TopTab({required this.query});
   final String query;
 
+  static final _videos = [
+    _VideoResult(
+      'https://picsum.photos/seed/top1/400/700',
+      '29/4',
+      'Play à telemi goût c\'est le big like et republier...',
+      'https://i.pravatar.cc/150?img=10',
+      '😁LE.MEC.ST...',
+      84,
+      false,
+    ),
+    _VideoResult(
+      'https://picsum.photos/seed/top2/400/700',
+      '1/9/2023',
+      '😱😱 #crab #big #crazy #alexfunfacts',
+      'https://i.pravatar.cc/150?img=11',
+      'alex.funfacts',
+      3700000,
+      false,
+    ),
+    _VideoResult(
+      'https://picsum.photos/seed/top3/400/700',
+      '14/3',
+      'Big energy vibes check this out',
+      'https://i.pravatar.cc/150?img=12',
+      'energy_vibes',
+      12400,
+      false,
+    ),
+    _VideoResult(
+      'https://picsum.photos/seed/top4/400/700',
+      '5/6',
+      'The big challenge everyone is doing 🔥',
+      'https://i.pravatar.cc/150?img=13',
+      'challenge_crew',
+      290000,
+      true,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(AppTokens.space16),
+      padding: const EdgeInsets.all(2),
       children: [
-        Text('Résultats pour "$query"',
-            style: AppTokens.titleM.copyWith(color: Colors.black)),
-        const SizedBox(height: AppTokens.space16),
-        // User preview card
-        _UserCard(
-          avatar: 'https://i.pravatar.cc/150?img=10',
-          username: '@${query.replaceAll(' ', '_')}',
-          followers: '1.2M',
-          videos: '234',
-        ),
-        const SizedBox(height: AppTokens.space16),
-        // Video grid preview
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 2,
-            mainAxisSpacing: 2,
-            childAspectRatio: 9 / 16,
-          ),
-          itemCount: 6,
-          itemBuilder: (context, i) => VideoThumbnail(
-            url: 'https://picsum.photos/seed/search$i/400/700',
-            views: '${(i + 1) * 12}K',
-          ),
-        ),
+        // 2-column staggered grid
+        _VideoGrid2Col(videos: _videos),
       ],
+    );
+  }
+}
+
+class _VideoGrid2Col extends StatelessWidget {
+  const _VideoGrid2Col({required this.videos});
+  final List<_VideoResult> videos;
+
+  @override
+  Widget build(BuildContext context) {
+    final pairs = <List<_VideoResult>>[];
+    for (var i = 0; i < videos.length; i += 2) {
+      pairs.add(videos.sublist(i, i + 2 > videos.length ? videos.length : i + 2));
+    }
+    return Column(
+      children: pairs.map((pair) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: pair
+              .map((v) => Expanded(child: _VideoCard(video: v)))
+              .toList(),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _VideoResult {
+  const _VideoResult(this.thumb, this.date, this.title, this.avatar,
+      this.username, this.likes, this.isMostLiked);
+  final String thumb, date, title, avatar, username;
+  final int likes;
+  final bool isMostLiked;
+}
+
+class _VideoCard extends StatelessWidget {
+  const _VideoCard({required this.video});
+  final _VideoResult video;
+
+  String _fmtLikes(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(0)}K';
+    return '$n';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Thumbnail
+          AspectRatio(
+            aspectRatio: 9 / 16,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: video.thumb,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Container(color: Colors.grey.shade300),
+                  ),
+                  if (video.isMostLiked)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Les plus aimées',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    bottom: 6,
+                    left: 6,
+                    right: 6,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          video.date,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            shadows: [
+                              Shadow(blurRadius: 4, color: Colors.black)
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.volume_off_rounded,
+                            color: Colors.white, size: 14),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Title
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(
+              video.title,
+              style: const TextStyle(
+                  color: Colors.black, fontSize: 12, height: 1.3),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Avatar + username + likes
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 9,
+                  backgroundImage: NetworkImage(video.avatar),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    video.username,
+                    style: const TextStyle(
+                      color: Color(0xFF8A8A8A),
+                      fontSize: 11,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(Icons.favorite_border_rounded,
+                    size: 11, color: Color(0xFF8A8A8A)),
+                const SizedBox(width: 2),
+                Text(
+                  _fmtLikes(video.likes),
+                  style: const TextStyle(
+                      color: Color(0xFF8A8A8A), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }
@@ -136,21 +317,53 @@ class _VideosTab extends StatelessWidget {
   const _VideosTab({required this.query});
   final String query;
 
+  static final _videos = [
+    _VideoResult(
+      'https://picsum.photos/seed/vid1/400/700',
+      '23/5',
+      'Flex up, stretch out big bands! Her waterbend...',
+      'https://i.pravatar.cc/150?img=20',
+      'kasacx',
+      162500,
+      false,
+    ),
+    _VideoResult(
+      'https://picsum.photos/seed/vid2/400/700',
+      '19/6',
+      'Oh, you stretch your big stretcher. New Spider-...',
+      'https://i.pravatar.cc/150?img=21',
+      'Kyro',
+      289400,
+      true,
+    ),
+    _VideoResult(
+      'https://picsum.photos/seed/vid3/400/700',
+      '3/4',
+      'Bro standing on business 😂',
+      'https://i.pravatar.cc/150?img=22',
+      'big_vibes',
+      45000,
+      false,
+    ),
+    _VideoResult(
+      'https://picsum.photos/seed/vid4/400/700',
+      '12/5',
+      'Un autre big moment incroyable à voir',
+      'https://i.pravatar.cc/150?img=23',
+      'moment_king',
+      89000,
+      false,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
+    return ListView(
       padding: const EdgeInsets.all(2),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-        childAspectRatio: 9 / 16,
-      ),
-      itemCount: 10,
-      itemBuilder: (context, i) => VideoThumbnail(
-        url: 'https://picsum.photos/seed/vid$i$query/400/700',
-        views: '${(i + 1) * 8}K',
-      ),
+      children: [
+        // "Suivis" separator if needed
+        _VideoGrid2Col(videos: _videos),
+      ],
     );
   }
 }
@@ -161,14 +374,23 @@ class _UsersTab extends StatelessWidget {
   final String query;
 
   static final _users = [
-    ('https://i.pravatar.cc/150?img=11', '@${_clean("user_one")}', '2.3M', '89'),
-    ('https://i.pravatar.cc/150?img=12', '@${_clean("user_two")}', '450K', '120'),
-    ('https://i.pravatar.cc/150?img=13', '@${_clean("user_three")}', '87K', '44'),
-    ('https://i.pravatar.cc/150?img=14', '@${_clean("user_four")}', '1.1M', '200'),
-    ('https://i.pravatar.cc/150?img=15', '@${_clean("user_five")}', '23K', '15'),
+    _UserResult('https://i.pravatar.cc/150?img=11', 'big_peeramon',
+        'big', '349,0K abonnés · 761 vidéos', false),
+    _UserResult('https://i.pravatar.cc/150?img=12', 'therealsemajlesley',
+        'BIG', '362,9K abonnés · 212 vidéos', false),
+    _UserResult('https://i.pravatar.cc/150?img=13', 'etie468',
+        'BIG', '414,3K abonnés · 209 vidéos', false),
+    _UserResult('https://i.pravatar.cc/150?img=14', 'bigbang_2xx6',
+        'BIGBANG', '430,3K abonnés · 6 vidéos', true),
+    _UserResult('https://i.pravatar.cc/150?img=15', 'acervosdabig',
+        'Big', '26,5K abonnés · 109 vidéos', false),
+    _UserResult('https://i.pravatar.cc/150?img=16', 'bipasa205',
+        'big', '162,8K abonnés · 0 vidéo', false),
+    _UserResult('https://i.pravatar.cc/150?img=17', 'drz013_',
+        'Big!', '33,3K abonnés · 263 vidéos', false),
+    _UserResult('https://i.pravatar.cc/150?img=18', 'big35_5',
+        'BiG', '18,9K abonnés · 51 vidéos', false, isPrivate: true),
   ];
-
-  static String _clean(String s) => s;
 
   @override
   Widget build(BuildContext context) {
@@ -176,50 +398,96 @@ class _UsersTab extends StatelessWidget {
       itemCount: _users.length,
       separatorBuilder: (_, __) =>
           const Divider(height: 1, color: AppTokens.colorDividerLight),
-      itemBuilder: (context, i) {
-        final (avatar, username, followers, videos) = _users[i];
-        return _UserCard(
-          avatar: avatar,
-          username: username,
-          followers: followers,
-          videos: videos,
-        );
-      },
+      itemBuilder: (context, i) => _UserTile(user: _users[i]),
     );
   }
 }
 
-class _UserCard extends StatelessWidget {
-  const _UserCard({
-    required this.avatar,
-    required this.username,
-    required this.followers,
-    required this.videos,
-  });
-  final String avatar, username, followers, videos;
+class _UserResult {
+  const _UserResult(this.avatar, this.username, this.displayName,
+      this.subtitle, this.verified,
+      {this.isPrivate = false});
+  final String avatar, username, displayName, subtitle;
+  final bool verified, isPrivate;
+}
+
+class _UserTile extends StatelessWidget {
+  const _UserTile({required this.user});
+  final _UserResult user;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppTokens.space16, vertical: AppTokens.space8),
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundImage: NetworkImage(avatar),
-      ),
-      title: Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
         children: [
-          Text(username,
-              style: AppTokens.bodyM.copyWith(
-                  color: Colors.black, fontWeight: FontWeight.w700)),
-          const SizedBox(width: 4),
-          const Icon(Icons.verified, color: AppTokens.colorVerified, size: 14),
+          CircleAvatar(
+            radius: 26,
+            backgroundImage: NetworkImage(user.avatar),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      user.username,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (user.verified) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.verified_rounded,
+                          color: AppTokens.colorVerified, size: 14),
+                    ],
+                    if (user.isPrivate) ...[
+                      const SizedBox(width: 4),
+                      const Text(
+                        '· Privé',
+                        style: TextStyle(
+                            color: Color(0xFF8A8A8A), fontSize: 13),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  user.displayName,
+                  style: const TextStyle(
+                      color: Color(0xFF8A8A8A), fontSize: 12),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  user.subtitle,
+                  style: const TextStyle(
+                      color: Color(0xFF8A8A8A), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFE2C55),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'Suivre',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
-      subtitle: Text('$followers followers · $videos vidéos',
-          style: AppTokens.labelS.copyWith(
-              color: AppTokens.colorTextSecondaryDark)),
-      trailing: const FollowButton(mini: true),
     );
   }
 }
@@ -234,18 +502,26 @@ class _SoundsTab extends StatelessWidget {
       itemCount: 8,
       itemBuilder: (context, i) => ListTile(
         leading: Container(
-          width: 48, height: 48,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             color: AppTokens.colorBgLightSurface,
             borderRadius: BorderRadius.circular(AppTokens.radiusMd),
           ),
-          child: const Icon(Icons.music_note, color: AppTokens.colorTextSecondaryDark),
+          child: const Icon(Icons.music_note_rounded,
+              color: AppTokens.colorTextSecondaryDark),
         ),
         title: Text('Son tendance ${i + 1}',
-            style: AppTokens.bodyM.copyWith(color: Colors.black)),
-        subtitle: Text('Artiste ${i + 1} · ${(i + 1) * 12}K vidéos',
-            style: AppTokens.labelS.copyWith(color: AppTokens.colorTextSecondaryDark)),
-        trailing: const Icon(Icons.play_circle_outline, color: AppTokens.colorTextSecondaryDark),
+            style: const TextStyle(
+                color: Colors.black,
+                fontSize: 14,
+                fontWeight: FontWeight.w600)),
+        subtitle: Text(
+            'Artiste ${i + 1} · ${(i + 1) * 12}K vidéos',
+            style: const TextStyle(
+                color: Color(0xFF8A8A8A), fontSize: 12)),
+        trailing: const Icon(Icons.play_circle_outline_rounded,
+            color: Color(0xFF8A8A8A)),
       ),
     );
   }
@@ -258,11 +534,11 @@ class _LiveTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: const EdgeInsets.all(AppTokens.space8),
+      padding: const EdgeInsets.all(4),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: AppTokens.space8,
-        mainAxisSpacing: AppTokens.space8,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
         childAspectRatio: 9 / 14,
       ),
       itemCount: 6,
@@ -276,22 +552,29 @@ class _LiveTab extends StatelessWidget {
               fit: BoxFit.cover,
             ),
             Positioned(
-              top: 8, left: 8,
+              top: 8,
+              left: 8,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppTokens.colorLiveRed,
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text('LIVE',
-                    style: AppTokens.caption.copyWith(
-                        color: Colors.white, fontWeight: FontWeight.w800)),
+                child: const Text('LIVE',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800)),
               ),
             ),
             Positioned(
-              bottom: 8, left: 8,
+              bottom: 8,
+              left: 8,
               child: Text('${(i + 1) * 1200} spectateurs',
-                  style: AppTokens.caption.copyWith(color: Colors.white)),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      shadows: [Shadow(blurRadius: 4, color: Colors.black)])),
             ),
           ],
         ),
@@ -317,22 +600,28 @@ class _HashtagsTab extends StatelessWidget {
           const Divider(height: 1, color: AppTokens.colorDividerLight),
       itemBuilder: (context, i) => ListTile(
         leading: Container(
-          width: 48, height: 48,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             color: AppTokens.colorBgLightSurface,
             shape: BoxShape.circle,
           ),
           child: Center(
             child: Text('#',
-                style: AppTokens.titleM.copyWith(color: Colors.black)),
+                style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700)),
           ),
         ),
         title: Text(tags[i],
-            style: AppTokens.bodyM.copyWith(
-                color: Colors.black, fontWeight: FontWeight.w700)),
+            style: const TextStyle(
+                color: Colors.black,
+                fontSize: 14,
+                fontWeight: FontWeight.w700)),
         trailing: Text('${(i + 1) * 89}M vues',
-            style: AppTokens.labelS.copyWith(
-                color: AppTokens.colorTextSecondaryDark)),
+            style: const TextStyle(
+                color: Color(0xFF8A8A8A), fontSize: 12)),
       ),
     );
   }
