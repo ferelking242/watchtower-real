@@ -170,9 +170,11 @@ class _FeedBottomNav extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _NavItem(icon: Icons.home_rounded,    label: 'Accueil', active: true),
-              _NavItem(icon: Icons.group_rounded,   label: 'Amis'),
+              _NavItem(icon: Icons.group_rounded,   label: 'Amis',
+                  onTap: () => context.push('/friends')),
               const _CreateButton(),
-              _NavItem(icon: Icons.inbox_rounded,   label: 'Boîte'),
+              _NavItem(icon: Icons.inbox_rounded,   label: 'Boîte',
+                  onTap: () => context.push('/inbox')),
               _NavItem(icon: Icons.person_rounded,  label: 'Profil',
                   onTap: () => context.push('/profile')),
             ],

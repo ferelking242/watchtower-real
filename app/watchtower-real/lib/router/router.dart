@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../features/feed/feed_screen.dart';
 import '../features/connect/connect_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/friends/friends_screen.dart';
+import '../features/inbox/inbox_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -20,6 +22,20 @@ final router = GoRouter(
       name: 'profile',
       pageBuilder: (context, state) => const MaterialPage(
         child: ProfileScreen(),
+      ),
+    ),
+    GoRoute(
+      path: '/friends',
+      name: 'friends',
+      pageBuilder: (context, state) => const MaterialPage(
+        child: FriendsScreen(),
+      ),
+    ),
+    GoRoute(
+      path: '/inbox',
+      name: 'inbox',
+      pageBuilder: (context, state) => const MaterialPage(
+        child: InboxScreen(),
       ),
     ),
     GoRoute(
