@@ -299,9 +299,9 @@ class _FeedEmpty extends StatelessWidget {
               textAlign: TextAlign.center),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () => GoRouter.of(context).push('/connect'),
-            icon: const Icon(Icons.settings_rounded),
-            label: const Text('Configurer le serveur'),
+            onPressed: () => GoRouter.of(context).push('/profile'),
+            icon: const Icon(Icons.person_rounded),
+            label: const Text('Aller dans Compte'),
           ),
         ],
       ),
