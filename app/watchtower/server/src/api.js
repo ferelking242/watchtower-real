@@ -137,13 +137,14 @@ app.get('/api/ping', (req, res) => {
 // Everything else requires auth + rate limiting
 app.use('/api', requireAuth, rateLimiterMiddleware);
 
-// GET /api/sources — list all non-NSFW sources
+// GET /api/sources — list sources; add ?nsfw=1 to include NSFW sources
 app.get('/api/sources', async (req, res) => {
   try {
-    console.log('[SOURCES] Listing sources…');
-    const sources = await registry.listSources({ includeNsfw: false });
-    console.log(`[SOURCES] Found ${sources.length} non-NSFW sources`);
-    sources.forEach((s, i) => console.log(`  [${i}] id=${s.id} name="${s.name}" lang=${s.lang} type=${s.itemType}`));
+    const includeNsfw = req.query.nsfw === '1';
+    console.log(`[SOURCES] Listing sources (includeNsfw=${includeNsfw})…`);
+    const sources = await registry.listSources({ includeNsfw });
+    console.log(`[SOURCES] Found ${sources.length} sources`);
+    sources.forEach((s, i) => console.log(`  [${i}] id=${s.id} name="${s.name}" nsfw=${s.isNsfw ?? false} lang=${s.lang} type=${s.itemType}`));
     json(res, { sources });
   } catch (e) {
     console.error('[SOURCES] Error:', e);
@@ -159,7 +160,7 @@ app.get('/api/sources/:id', async (req, res) => {
       console.warn(`[SOURCE] Not found: "${req.params.id}"`);
       return error(res, 'Source not found', 404);
     }
-    if (nsfwBlocked(source)) return error(res, 'Source not available via API', 403);
+    // No NSFW block on explicit ID requests — client chose this source intentionally
     json(res, source);
   } catch (e) {
     console.error(`[SOURCE] Error for id "${req.params.id}":`, e);
@@ -175,7 +176,7 @@ app.get('/api/sources/:id/popular', async (req, res) => {
       console.warn(`[POPULAR] Source not found: "${req.params.id}"`);
       return error(res, 'Source not found', 404);
     }
-    if (nsfwBlocked(source)) return error(res, 'Source not available via API', 403);
+    // No NSFW block — explicit source ID means the client chose this intentionally
     const page = parseInt(req.query.page || '1', 10);
     console.log(`[POPULAR] source="${source.name}" (${req.params.id}) page=${page}`);
     const runtime = await getRuntimeForSource(source);
@@ -197,7 +198,6 @@ app.get('/api/sources/:id/latest', async (req, res) => {
       console.warn(`[LATEST] Source not found: "${req.params.id}"`);
       return error(res, 'Source not found', 404);
     }
-    if (nsfwBlocked(source)) return error(res, 'Source not available via API', 403);
     const page = parseInt(req.query.page || '1', 10);
     console.log(`[LATEST] source="${source.name}" (${req.params.id}) page=${page}`);
     const runtime = await getRuntimeForSource(source);
@@ -216,7 +216,6 @@ app.get('/api/sources/:id/search', async (req, res) => {
   try {
     const source = await registry.findSource(req.params.id);
     if (!source) return error(res, 'Source not found', 404);
-    if (nsfwBlocked(source)) return error(res, 'Source not available via API', 403);
     const q    = (req.query.q || req.query.query || '').replace(/'/g, "\\'");
     const page = parseInt(req.query.page || '1', 10);
     console.log(`[SEARCH] source="${source.name}" q="${q}" page=${page}`);
@@ -235,7 +234,6 @@ app.get('/api/sources/:id/detail', async (req, res) => {
   try {
     const source = await registry.findSource(req.params.id);
     if (!source) return error(res, 'Source not found', 404);
-    if (nsfwBlocked(source)) return error(res, 'Source not available via API', 403);
     const url = (req.query.url || '').replace(/'/g, "\\'");
     if (!url) return error(res, 'url query param required', 400);
     console.log(`[DETAIL] source="${source.name}" url="${url.slice(0, 100)}"`);
@@ -255,7 +253,6 @@ app.get('/api/sources/:id/videos', async (req, res) => {
   try {
     const source = await registry.findSource(req.params.id);
     if (!source) return error(res, 'Source not found', 404);
-    if (nsfwBlocked(source)) return error(res, 'Source not available via API', 403);
     const url = (req.query.url || '').replace(/'/g, "\\'");
     if (!url) return error(res, 'url query param required', 400);
     console.log(`[VIDEOS] source="${source.name}" url="${url.slice(0, 100)}"`);
@@ -276,7 +273,6 @@ app.get('/api/sources/:id/filters', async (req, res) => {
   try {
     const source = await registry.findSource(req.params.id);
     if (!source) return error(res, 'Source not found', 404);
-    if (nsfwBlocked(source)) return error(res, 'Source not available via API', 403);
     const runtime = await getRuntimeForSource(source);
     const data = await callExtension(runtime, 'getFilterList()', req.params.id);
     json(res, { filters: Array.isArray(data) ? data : [] });
@@ -288,7 +284,6 @@ app.get('/api/sources/:id/pages', async (req, res) => {
   try {
     const source = await registry.findSource(req.params.id);
     if (!source) return error(res, 'Source not found', 404);
-    if (nsfwBlocked(source)) return error(res, 'Source not available via API', 403);
     const url = (req.query.url || '').replace(/'/g, "\\'");
     if (!url) return error(res, 'url query param required', 400);
     const runtime = await getRuntimeForSource(source);

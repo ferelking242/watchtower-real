@@ -15,15 +15,24 @@ class RemoteApiClient {
       };
 
   Future<Map<String, dynamic>> ping() => _get('/api/ping');
-  Future<List<dynamic>> sources() async => (await _get('/api/sources'))['sources'] ?? [];
+
+  /// List available sources.
+  /// Pass [nsfw] = true to include NSFW sources (e.g. RedGIFs).
+  Future<List<dynamic>> sources({bool nsfw = false}) async =>
+      (await _get('/api/sources${nsfw ? "?nsfw=1" : ""}'))['sources'] ?? [];
+
   Future<Map<String, dynamic>> popular(String sourceId, {int page = 1}) =>
       _get('/api/sources/$sourceId/popular?page=$page');
+
   Future<Map<String, dynamic>> latest(String sourceId, {int page = 1}) =>
       _get('/api/sources/$sourceId/latest?page=$page');
+
   Future<Map<String, dynamic>> search(String sourceId, String query, {int page = 1}) =>
       _get('/api/sources/$sourceId/search?query=${Uri.encodeComponent(query)}&page=$page');
+
   Future<Map<String, dynamic>> detail(String sourceId, String itemUrl) =>
       _get('/api/sources/$sourceId/detail?url=${Uri.encodeComponent(itemUrl)}');
+
   Future<Map<String, dynamic>> videos(String sourceId, String episodeUrl) =>
       _get('/api/sources/$sourceId/videos?url=${Uri.encodeComponent(episodeUrl)}');
 

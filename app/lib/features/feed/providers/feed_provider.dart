@@ -107,7 +107,7 @@ class FeedState {
   final List<FeedItemModel> items;
   final bool isLoadingMore;
   final String? error;
-  final String? sourceId; // which source is active
+  final String? sourceId;
 
   static FeedState initial() => const FeedState(items: []);
 
@@ -126,18 +126,6 @@ class FeedState {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Extract the usable route slug from a source object.
-/// Servers typically route by string slug (e.g. "redgift"), NOT by numeric id.
-/// Priority: non-empty String id > name > slug > key > id.toString()
-String _pickSourceId(Map<dynamic, dynamic> m) {
-  final id   = m['id'];
-  final name = m['name'] ?? m['slug'] ?? m['key'];
-  if (id is String && id.isNotEmpty) return id;
-  if (name != null && name.toString().isNotEmpty) return name.toString();
-  if (id != null) return id.toString();
-  return m.toString();
-}
-
 /// Pull the item list from any common server response envelope.
 List<dynamic> _extractItems(Map<String, dynamic> data) =>
     data['items']   as List<dynamic>? ??
@@ -145,6 +133,7 @@ List<dynamic> _extractItems(Map<String, dynamic> data) =>
     data['results'] as List<dynamic>? ??
     data['videos']  as List<dynamic>? ??
     data['posts']   as List<dynamic>? ??
+    data['mangas']  as List<dynamic>? ??
     data['content'] as List<dynamic>? ?? [];
 
 // ─── Notifier ─────────────────────────────────────────────────────────────────
@@ -152,13 +141,10 @@ List<dynamic> _extractItems(Map<String, dynamic> data) =>
 class FeedNotifier extends AsyncNotifier<FeedState> {
   @override
   Future<FeedState> build() async {
-    // Watch so the feed rebuilds when config changes (e.g. after saving in config sheet).
-    // .future ensures we wait for SharedPreferences to finish loading before deciding.
     final config = await ref.watch(remoteConfigProvider.future);
     return _load(FeedState.initial(), config);
   }
 
-  /// Dynamically discover which source ID to use, then fetch its popular items.
   Future<FeedState> _load(FeedState current, RemoteConfig config) async {
     if (!config.isConfigured) {
       NtfyLogger.info('Feed: aucune config serveur → liste vide');
@@ -167,29 +153,34 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
 
     try {
       final client = ref.read(remoteClientProvider);
-      if (client == null) throw Exception('remoteClientProvider retourne null (config vide?)');
+      if (client == null) throw Exception('remoteClientProvider retourne null');
 
-      // ── Étape 1 : lister les sources disponibles ─────────────────────────
-      late final String sourceId;
-      try {
-        final sources = await client.sources().timeout(const Duration(seconds: 10));
+      // ── Résoudre le sourceId ──────────────────────────────────────────────
+      // Priorité 1 : sourceId sauvegardé dans la config (choix utilisateur)
+      // Priorité 2 : auto-discover (premier de la liste avec NSFW inclus)
+      String sourceId;
+      if (config.sourceId.isNotEmpty) {
+        sourceId = config.sourceId;
+        NtfyLogger.info('Feed: source configurée → $sourceId');
+      } else {
+        // Auto-discover : fetch avec nsfw=1 pour voir toutes les sources dispo
+        final sources = await client
+            .sources(nsfw: true)
+            .timeout(const Duration(seconds: 10));
         if (sources.isEmpty) {
-          throw Exception('Le serveur ne retourne aucune source (/api/sources vide)');
+          throw Exception('Le serveur ne retourne aucune source');
         }
-        // Prend l'ID de la première source (peu importe son nom)
+        // Prend la première source disponible
         final first = sources.first;
         sourceId = (first is Map)
-            ? _pickSourceId(first as Map)
+            ? (first['id']?.toString() ?? first['name']?.toString() ?? first.toString())
             : first.toString();
-        NtfyLogger.info('Sources disponibles: ${sources.map((s) => s is Map ? s["id"] ?? s["name"] : s).toList()}\nSource active: $sourceId');
-      } catch (e) {
-        throw Exception('Impossible de lister les sources: $e');
+        NtfyLogger.info('Feed: auto-pick source → $sourceId');
       }
 
-      // ── Étape 2 : charger les items (popular → latest fallback) ──────────
+      // ── Charger les items (popular → latest fallback) ─────────────────────
       List<dynamic> raw = [];
 
-      // Try popular first — any HTTP error (404, 500…) triggers latest fallback
       try {
         final data = await client.popular(sourceId).timeout(const Duration(seconds: 15));
         raw = _extractItems(data);
@@ -198,7 +189,6 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
         NtfyLogger.warn('popular/$sourceId → $e — essai latest');
       }
 
-      // Fallback to latest when popular returned nothing or errored
       if (raw.isEmpty) {
         try {
           final fallback = await client.latest(sourceId).timeout(const Duration(seconds: 15));
@@ -222,7 +212,6 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
     } catch (e) {
       final errMsg = e.toString();
       NtfyLogger.error('Feed error: $errMsg\nServeur: ${config.baseUrl}');
-
       if (current.items.isEmpty) {
         return FeedState(
           items: const [],
