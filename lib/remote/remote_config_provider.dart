@@ -2,13 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reel/remote/remote_client.dart';
 
-const _kBaseUrl         = 'wt_real_server_url';
-const _kApiKey          = 'wt_real_api_key';
-const _kSelectedSource  = 'wt_real_source_id';
+const _kBaseUrl        = 'wt_real_server_url';
+const _kApiKey         = 'wt_real_api_key';
+const _kSelectedSource = 'wt_real_source_id';
 
-    'https://036ada93-f714-4010-8afa-e2735af81428-00-2pirsjfgvm9v3.picard.replit.dev';
-
-/// ID RedGIFs par défaut — visible en mode vidéo sans config manuelle.
+/// Source ID par défaut — vide, l'utilisateur choisit après connexion.
 const kDefaultSourceId = '';
 
 class RemoteConfig {
@@ -28,6 +26,7 @@ class RemoteConfigNotifier extends AsyncNotifier<RemoteConfig> {
   Future<RemoteConfig> build() async {
     final prefs = await SharedPreferences.getInstance();
     return RemoteConfig(
+      baseUrl:          prefs.getString(_kBaseUrl)        ?? '',
       apiKey:           prefs.getString(_kApiKey)         ?? '',
       selectedSourceId: prefs.getString(_kSelectedSource) ?? kDefaultSourceId,
     );
