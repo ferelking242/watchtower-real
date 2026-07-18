@@ -22,10 +22,6 @@ jobs:
           - label: x86_64
             target: android-x64
 
-    defaults:
-      run:
-        working-directory: app/watchtower-real
-
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.pub-cache
-          key: pub-${{ runner.os }}-${{ hashFiles('app/watchtower-real/pubspec.lock') }}
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
           restore-keys: pub-${{ runner.os }}-
 
       - name: Cache Gradle
@@ -53,11 +49,11 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('app/watchtower-real/android/**/*.gradle*', 'app/watchtower-real/pubspec.lock') }}
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'pubspec.lock') }}
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Generate keystore
-        working-directory: app/watchtower-real/android/app
+        working-directory: android/app
         run: |
           keytool -genkey -v \
             -keystore watchtower-debug.keystore \
@@ -88,5 +84,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: apk-${{ matrix.label }}
-          path: app/watchtower-real/artifacts/watchtower-real-${{ matrix.label }}.apk
+          path: artifacts/watchtower-real-${{ matrix.label }}.apk
           retention-days: 14
