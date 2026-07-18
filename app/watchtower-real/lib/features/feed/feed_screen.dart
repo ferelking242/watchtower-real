@@ -287,27 +287,65 @@ class _FeedSkeleton extends StatelessWidget {
   }
 }
 
-class _FeedError extends StatelessWidget {
+class _FeedError extends ConsumerWidget {
   const _FeedError({required this.message});
   final String message;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bottom = MediaQuery.of(context).padding.bottom + 72;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.fromLTRB(32, 0, 32, bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_rounded, size: 48, color: colorTextSecondary),
-            const SizedBox(height: 16),
-            Text('Impossible de charger le feed',
-                style: const TextStyle(color: colorTextPrimary, fontSize: 16,
-                    fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center),
+            const Icon(Icons.wifi_off_rounded, size: 56, color: colorTextSecondary),
+            const SizedBox(height: 20),
+            const Text(
+              'Impossible de charger le feed',
+              style: TextStyle(color: colorTextPrimary, fontSize: 16,
+                  fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 8),
-            Text(message, style: const TextStyle(color: colorTextSecondary, fontSize: 13),
-                textAlign: TextAlign.center),
+            Text(
+              message.length > 160 ? '${message.substring(0, 160)}…' : message,
+              style: const TextStyle(color: colorTextSecondary, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => ref.read(feedItemsProvider.notifier).reload(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorBrand,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Réessayer'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => context.go('/connect'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colorTextSecondary,
+                  side: const BorderSide(color: colorTextSecondary),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.settings_ethernet_rounded, size: 18),
+                label: const Text('Modifier la connexion'),
+              ),
+            ),
           ],
         ),
       ),
@@ -320,26 +358,42 @@ class _FeedEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).padding.bottom + 72;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.videocam_off_rounded, size: 48, color: colorTextSecondary),
-          const SizedBox(height: 16),
-          const Text('Aucun contenu disponible',
-              style: TextStyle(color: colorTextPrimary, fontSize: 16,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          const Text('Configure un serveur Watchtower pour voir du contenu.',
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(32, 0, 32, bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.videocam_off_rounded, size: 56, color: colorTextSecondary),
+            const SizedBox(height: 20),
+            const Text('Aucun contenu disponible',
+                style: TextStyle(color: colorTextPrimary, fontSize: 16,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            const Text(
+              'Configure un serveur Watchtower pour voir du contenu.',
               style: TextStyle(color: colorTextSecondary, fontSize: 13),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => GoRouter.of(context).push('/profile'),
-            icon: const Icon(Icons.person_rounded),
-            label: const Text('Aller dans Compte'),
-          ),
-        ],
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.go('/connect'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorBrand,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.settings_ethernet_rounded, size: 18),
+                label: const Text('Configurer un serveur'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
