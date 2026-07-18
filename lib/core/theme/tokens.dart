@@ -107,3 +107,10 @@ const double iconSidebar    = AppTokens.iconSidebar;
 const double iconNav        = AppTokens.iconNav;
 const double iconHeader     = AppTokens.iconHeader;
 const double iconInline     = AppTokens.iconInline;
+
+// ── Animation durations ───────────────────────────────────────────────────────
+const durationNormal = Duration(milliseconds: 250);
+const durationFast   = Duration(milliseconds: 150);
+const durationSlow   = Duration(milliseconds: 400);
+const durationLike   = Duration(milliseconds: 380);
+const durationPulse  = Duration(milliseconds: 900);
