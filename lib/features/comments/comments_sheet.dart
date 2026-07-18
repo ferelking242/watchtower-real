@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:watchtower_real/core/theme/tokens.dart';
+import 'package:reel/core/theme/tokens.dart';
 
 // ─── Mock comment model ───────────────────────────────────────────────────────
 class _Comment {
