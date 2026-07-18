@@ -21,6 +21,7 @@ class ProfileScreen extends ConsumerWidget {
         backgroundColor: colorBgBase,
         elevation: 0,
         centerTitle: true,
+        iconTheme: const IconThemeData(color: colorTextPrimary),
         title: const Text(
           'Compte',
           style: TextStyle(
