@@ -1,6 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:watchtower_real/core/theme/tokens.dart';
+import 'package:reel/core/theme/tokens.dart';
 
 // ─── Simple avatar (no follow button) ────────────────────────────────────────
 class WAvatar extends StatelessWidget {
