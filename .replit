@@ -1,10 +1,3 @@
-modules = ["nodejs-24"]
-[agent]
-expertMode = true
-
-[nix]
-channel = "stable-25_05"
-
 [workflows]
 runButton = "Project"
 
@@ -15,20 +8,21 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Watchtower Server"
+args = "Start application"
 
 [[workflows.workflow]]
-name = "Watchtower Server"
+name = "Start application"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=5000 node app/watchtower/server/server.js"
-waitForPort = 5000
+args = "echo 'Watchtower Flutter app — build and run on Android/iOS device. Editing extensions and Dart source code here.' && cat replit.md 2>/dev/null || echo 'replit.md not found'"
 
 [workflows.workflow.metadata]
-outputType = "webview"
+outputType = "console"
 
-[[ports]]
-localPort = 5000
-externalPort = 80
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"

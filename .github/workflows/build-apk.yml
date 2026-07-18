@@ -11,8 +11,16 @@ concurrency:
 
 jobs:
   build-android:
-    name: Android (arm64-v8a)
+    name: Android (${{ matrix.label }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: arm64-v8a
+            target: android-arm64
+          - label: x86_64
+            target: android-x64
 
     defaults:
       run:
@@ -28,7 +36,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.x'
+          flutter-version: '3.32.x'
           channel: stable
           cache: true
 
@@ -48,58 +56,37 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('app/watchtower-real/android/**/*.gradle*', 'app/watchtower-real/pubspec.lock') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      # ── Keystore permanent (KEYSTORE_BASE64 secret GitHub) ─────────────────
-      - name: Decode keystore
+      - name: Generate keystore
         working-directory: app/watchtower-real/android/app
         run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > reel.keystore
-            echo "KEYSTORE_PATH=$PWD/reel.keystore" >> $GITHUB_ENV
-            echo "✓ Keystore permanent décodé"
-          else
-            echo "⚠ KEYSTORE_BASE64 absent — génération d'un keystore de secours"
-            keytool -genkey -v \
-              -keystore reel.keystore \
-              -alias reel -keyalg RSA -keysize 2048 -validity 36500 \
-              -storetype PKCS12 \
-              -storepass "${KEY_PASSWORD:-reelwatchtower}" \
-              -keypass "${KEY_PASSWORD:-reelwatchtower}" \
-              -dname "CN=Reel,O=Watchtower,C=US"
-            echo "KEYSTORE_PATH=$PWD/reel.keystore" >> $GITHUB_ENV
-          fi
-        env:
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          keytool -genkey -v \
+            -keystore watchtower-debug.keystore \
+            -alias watchtower -keyalg RSA -keysize 2048 -validity 10000 \
+            -storetype PKCS12 -storepass watchtower -keypass watchtower \
+            -dname "CN=Watchtower,O=Watchtower,C=US"
 
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build APK — arm64-v8a (release)
+      - name: Build APK — ${{ matrix.label }}
         env:
-          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
-          KEY_ALIAS:     ${{ secrets.KEY_ALIAS || 'reel' }}
-          KEY_PASSWORD:  ${{ secrets.KEY_PASSWORD || 'reelwatchtower' }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'reelwatchtower' }}
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dhttp.keepAlive=false"
         run: |
           flutter build apk \
-            --release \
-            --target-platform android-arm64 \
+            --profile \
+            --target-platform ${{ matrix.target }} \
             --split-per-abi
 
       - name: Collect artifact
         run: |
           mkdir -p artifacts
-          APK="build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
-          [ -f "$APK" ] || {
-            echo "ERROR: APK not found at $APK"
-            ls build/app/outputs/flutter-apk/ 2>/dev/null || true
-            exit 1
-          }
-          cp "$APK" "artifacts/reel-arm64-v8a.apk"
-          echo "APK: $(du -sh artifacts/reel-arm64-v8a.apk)"
+          APK="build/app/outputs/flutter-apk/app-${{ matrix.label }}-profile.apk"
+          [ -f "$APK" ] || { echo "ERROR: not found"; ls build/app/outputs/flutter-apk/ || true; exit 1; }
+          cp "$APK" "artifacts/watchtower-real-${{ matrix.label }}.apk"
+          echo "APK: $(du -sh artifacts/watchtower-real-${{ matrix.label }}.apk)"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: apk-arm64-v8a
-          path: app/watchtower-real/artifacts/reel-arm64-v8a.apk
+          name: apk-${{ matrix.label }}
+          path: app/watchtower-real/artifacts/watchtower-real-${{ matrix.label }}.apk
           retention-days: 14

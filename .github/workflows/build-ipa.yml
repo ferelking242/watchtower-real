@@ -23,7 +23,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.x'
+          flutter-version: '3.32.x'
           channel: stable
           cache: true
 
@@ -37,74 +37,18 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      # ── Génère ios/ et patche immédiatement le signing (Xcode 15/16 fix) ───
-      - name: Create iOS project + patch signing
-        run: |
-          flutter create --platforms=ios .
-
-          PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
-
-          # 1. Patch project.pbxproj : désactive automatic signing + vide team
-          sed -i '' \
-            -e 's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "";/g' \
-            -e 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' \
-            -e 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' \
-            "$PBXPROJ" 2>/dev/null || true
-
-          echo "✓ pbxproj patché :"
-          grep -E 'DEVELOPMENT_TEAM|ProvisioningStyle' "$PBXPROJ" | head -6
-
-          # 2. Patch Podfile : ajoute CODE_SIGNING_ALLOWED = NO pour tous les pods
-          #    (le Podfile généré a déjà un post_install avec flutter_additional_ios_build_settings)
-          ruby -e "
-            content = File.read('ios/Podfile')
-            patch = content.gsub(
-              'flutter_additional_ios_build_settings(target)',
-              %{flutter_additional_ios_build_settings(target)
-                target.build_configurations.each do |config|
-                  config.build_settings['CODE_SIGNING_ALLOWED']  = 'NO'
-                  config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
-                  config.build_settings['DEVELOPMENT_TEAM']      = ''
-                end}
-            )
-            File.write('ios/Podfile', patch)
-            puts '✓ Podfile patché'
-          "
-
-      # ── ATS : autorise HTTP local (serveur Watchtower embarqué) ─────────────
-      - name: Allow HTTP for local server (ATS patch)
-        run: |
-          PLIST="ios/Runner/Info.plist"
-          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict"                        "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true"  "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$PLIST" 2>/dev/null || true
-          echo "ATS patch OK :"
-          /usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity" "$PLIST"
-
-      # ── Build iOS sans codesign ─────────────────────────────────────────────
       - name: Build iOS (no codesign)
-        run: |
-          flutter build ios --release --no-codesign \
-            --dart-define=FLUTTER_WEB_CANVASKIT_URL=none
-          echo "Build terminé."
-          ls -lh build/ios/iphoneos/ 2>/dev/null || true
+        run: flutter build ios --release --no-codesign
 
-      # ── Packaging IPA (TrollStore) ──────────────────────────────────────────
       - name: Package IPA (TrollStore)
         run: |
-          APP="build/ios/iphoneos/Runner.app"
-          if [ ! -d "$APP" ]; then
-            echo "ERROR: Runner.app not found"
-            find build/ -name "*.app" 2>/dev/null | head -10
-            exit 1
-          fi
           mkdir -p Payload
-          cp -r "$APP" Payload/
-          zip -qr reel.ipa Payload
-          echo "IPA: $(du -sh reel.ipa)"
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -qr watchtower-real.ipa Payload
+          echo "IPA: $(du -sh watchtower-real.ipa)"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ipa-trollstore
-          path: app/watchtower-real/reel.ipa
+          path: app/watchtower-real/watchtower-real.ipa
           retention-days: 14

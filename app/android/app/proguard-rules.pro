@@ -1,3 +1,0 @@
--keep class io.flutter.** { *; }
--keep class com.watchtower.real.** { *; }
--dontwarn io.flutter.**
