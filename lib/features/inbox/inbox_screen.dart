@@ -12,6 +12,7 @@ class InboxScreen extends StatelessWidget {
         backgroundColor: colorBgBase,
         elevation: 0,
         centerTitle: true,
+        iconTheme: const IconThemeData(color: colorTextPrimary),
         title: const Text(
           'Boîte de réception',
           style: TextStyle(
