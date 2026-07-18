@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/tokens.dart';
 import '../../remote/remote_client.dart';
 import '../../remote/remote_config_provider.dart';
@@ -102,7 +103,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
             apiKey:           _keyCtrl.text.trim(),
             selectedSourceId: _selectedSourceId ?? kDefaultSourceId,
           );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) context.go('/');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
