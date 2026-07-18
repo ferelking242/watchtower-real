@@ -1,8 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:watchtower_real/core/theme/tokens.dart';
-import 'package:watchtower_real/core/widgets/video_thumbnail.dart';
-import 'package:watchtower_real/features/search/search_filters_sheet.dart';
+import 'package:reel/core/theme/tokens.dart';
+import 'package:reel/core/widgets/video_thumbnail.dart';
+import 'package:reel/features/search/search_filters_sheet.dart';
 
 class SearchResultsScreen extends StatefulWidget {
   const SearchResultsScreen({super.key, required this.query});
