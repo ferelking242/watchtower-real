@@ -8,9 +8,9 @@ class FriendsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: colorBgBase,
-        foregroundColor: colorTextPrimary,
       appBar: AppBar(
         backgroundColor: colorBgBase,
+        foregroundColor: colorTextPrimary,
         elevation: 0,
         centerTitle: true,
         iconTheme: const IconThemeData(color: colorTextPrimary),
