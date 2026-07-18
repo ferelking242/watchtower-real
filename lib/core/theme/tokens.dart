@@ -65,3 +65,45 @@ abstract class AppTokens {
   static const labelS = TextStyle(fontSize: 11, fontWeight: FontWeight.w400, height: 1.2);
   static const caption = TextStyle(fontSize: 10, fontWeight: FontWeight.w400, height: 1.2);
 }
+
+// ── Top-level convenience aliases ─────────────────────────────────────────────
+// Allows using bare names (colorBgBase, space16 …) without AppTokens prefix.
+const colorBrand            = AppTokens.colorBrand;
+const colorBrandCyan        = AppTokens.colorBrandCyan;
+const colorBgBase           = AppTokens.colorBgBase;
+const colorBgSurface        = AppTokens.colorBgSurface;
+const colorBgCard           = AppTokens.colorBgCard;
+const colorBgOverlay        = AppTokens.colorBgOverlay;
+const colorBgLight          = AppTokens.colorBgLight;
+const colorBgLightSurface   = AppTokens.colorBgLightSurface;
+const colorBgLightCard      = AppTokens.colorBgLightCard;
+const colorTextPrimary      = AppTokens.colorTextPrimary;
+const colorTextPrimaryDark  = AppTokens.colorTextPrimaryDark;
+const colorTextSecondary    = AppTokens.colorTextSecondary;
+const colorTextSecondaryDark = AppTokens.colorTextSecondaryDark;
+const colorTextBrand        = AppTokens.colorTextBrand;
+const colorLike             = AppTokens.colorLike;
+const colorLiveRed          = AppTokens.colorLiveRed;
+const colorVerified         = AppTokens.colorVerified;
+const colorFollowBtn        = AppTokens.colorFollowBtn;
+const colorDivider          = AppTokens.colorDivider;
+const colorDividerLight     = AppTokens.colorDividerLight;
+const double space2         = AppTokens.space2;
+const double space4         = AppTokens.space4;
+const double space8         = AppTokens.space8;
+const double space12        = AppTokens.space12;
+const double space16        = AppTokens.space16;
+const double space20        = AppTokens.space20;
+const double space24        = AppTokens.space24;
+const double space32        = AppTokens.space32;
+const double space48        = AppTokens.space48;
+const double space56        = AppTokens.space56;
+const double radiusNone     = AppTokens.radiusNone;
+const double radiusSm       = AppTokens.radiusSm;
+const double radiusMd       = AppTokens.radiusMd;
+const double radiusLg       = AppTokens.radiusLg;
+const double radiusPill     = AppTokens.radiusPill;
+const double iconSidebar    = AppTokens.iconSidebar;
+const double iconNav        = AppTokens.iconNav;
+const double iconHeader     = AppTokens.iconHeader;
+const double iconInline     = AppTokens.iconInline;
