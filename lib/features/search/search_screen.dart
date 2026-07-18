@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:watchtower_real/core/theme/tokens.dart';
-import 'package:watchtower_real/features/search/search_results_screen.dart';
+import 'package:reel/core/theme/tokens.dart';
+import 'package:reel/features/search/search_results_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
