@@ -33,6 +33,10 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
         text: config?.baseUrl ?? '');
     _keyCtrl = TextEditingController(text: config?.apiKey ?? '');
     _selectedSourceId = config?.selectedSourceId ?? kDefaultSourceId;
+    // Charger automatiquement les sources si serveur déjà configuré
+    if (config != null && config.isConfigured) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _test());
+    }
   }
 
   @override
@@ -146,7 +150,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
           const SizedBox(height: space8),
           _TextField(
             controller: _urlCtrl,
-            hint: 'http://192.168.1.70:4567',
+            hint: 'https://mon-serveur.exemple.com',
             keyboardType: TextInputType.url,
           ),
           const SizedBox(height: space16),
