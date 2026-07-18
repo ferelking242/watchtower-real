@@ -1,51 +1,40 @@
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import 'ntfy_config.dart';
 
-/// Envoie des logs push vers ntfy.sh en fire-and-forget.
-/// Topic : [NtfyConfig.topic]  →  https://ntfy.sh/watchtower-real
+/// Sends push log messages to ntfy.sh so you can watch the app live.
+/// Topic: https://ntfy.sh/watchtower-app  (subscribe on your phone)
 class NtfyLogger {
-  static void info(String msg, {String? title}) => _send(
-        msg,
-        title: title ?? '📱 ${NtfyConfig.appName}',
-        priority: 'low',
-        tags: 'information_source',
-      );
+  static const _topic = 'https://ntfy.sh/watchtower-app';
 
-  static void warn(String msg, {String? title}) => _send(
-        msg,
-        title: title ?? '⚠️ ${NtfyConfig.appName}',
-        priority: 'default',
-        tags: 'warning',
-      );
+  /// Send a debug/info message (low priority).
+  static void info(String msg, {String? title}) =>
+      _send(msg, title: title ?? '📱 Watchtower', priority: 'low', tags: 'information_source');
 
-  static void error(String msg, {String? title}) => _send(
-        msg,
-        title: title ?? '🔴 ${NtfyConfig.appName} Error',
-        priority: 'high',
-        tags: 'rotating_light',
-      );
+  /// Send a warning (remote fallback, etc.).
+  static void warn(String msg, {String? title}) =>
+      _send(msg, title: title ?? '⚠️ Watchtower', priority: 'default', tags: 'warning');
 
-  static void ok(String msg, {String? title}) => _send(
-        msg,
-        title: title ?? '✅ ${NtfyConfig.appName}',
-        priority: 'low',
-        tags: 'white_check_mark',
-      );
+  /// Send an error (high priority).
+  static void error(String msg, {String? title}) =>
+      _send(msg, title: title ?? '🔴 Watchtower Error', priority: 'high', tags: 'rotating_light');
+
+  /// Send a success message.
+  static void ok(String msg, {String? title}) =>
+      _send(msg, title: title ?? '✅ Watchtower', priority: 'low', tags: 'white_check_mark');
 
   static void _send(String body, {
     required String title,
     required String priority,
     required String tags,
   }) {
-    // Fire and forget — ne bloque jamais l'UI
-    _unawaited(
+    // Fire and forget — never block the UI
+    unawaited(
       http.post(
-        Uri.parse(NtfyConfig.topic),
+        Uri.parse(_topic),
         headers: {
-          'Title':    title,
+          'Title': title,
           'Priority': priority,
-          'Tags':     tags,
+          'Tags': tags,
         },
         body: body,
       ).timeout(const Duration(seconds: 5)),
@@ -53,4 +42,4 @@ class NtfyLogger {
   }
 }
 
-void _unawaited(Future<dynamic> f) => f.catchError((_) {});
+void unawaited(Future<dynamic> f) => f.catchError((_) {});

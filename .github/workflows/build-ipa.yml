@@ -1,8 +1,8 @@
-name: Build IPA (TrollStore)
+name: Build IPA (Reel — TrollStore)
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 concurrency:
@@ -16,30 +16,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          lfs: true
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.x'
+          flutter-version: '3.38.x'
           channel: stable
           cache: true
-
-      - name: Install Rust (rust_lib_watchtower FFI via cargokit)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios,x86_64-apple-ios
-
-      - name: Cache Rust
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            rust/target
-            rust_builder/target
-          key: cargo-ios-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-ios-${{ runner.os }}-
 
       - name: Cache pub
         uses: actions/cache@v4
@@ -48,62 +30,48 @@ jobs:
           key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
           restore-keys: pub-${{ runner.os }}-
 
-      - name: Cache CocoaPods spec repo
+      - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
           path: ~/.cocoapods
-          key: cocoapods-repo-${{ runner.os }}-v1
-          restore-keys: cocoapods-repo-${{ runner.os }}-
+          key: cocoapods-${{ runner.os }}-v1
 
-      - name: Cache ios/Pods
-        id: pods-cache
-        uses: actions/cache@v4
-        with:
-          path: ios/Pods
-          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile') }}
-          restore-keys: pods-${{ runner.os }}-
-
-      - name: Flutter pub get
+      - name: pub get
         run: flutter pub get
 
-      - name: Fix flutter_new_pipe_extractor missing assets dir
+      - name: Create iOS platform (first run)
         run: |
-          find ~/.pub-cache/git -maxdepth 1 -name "flutter_new_pipe_extractor*" -type d | while read dir; do
-            mkdir -p "$dir/assets"
-            echo "Created: $dir/assets"
-          done
-
-      - name: Install CocoaPods
-        run: |
-          cd ios
-          if [ "${{ steps.pods-cache.outputs.cache-hit }}" = "true" ]; then
-            pod install
-          else
-            pod install --repo-update
+          if [ ! -d ios ]; then
+            flutter create --platforms=ios --project-name reel .
+            echo "✓ iOS scaffold created"
           fi
 
-      - name: Patch Xcode project for CI (manual signing, no team)
+      - name: Patch Xcode 16 signing
         run: |
-          PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$PBXPROJ"
-          sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "[^"]*"/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = ""/g' "$PBXPROJ"
-          sed -i '' 's/CODE_SIGN_IDENTITY = "[^"]*";/CODE_SIGN_IDENTITY = "";/g' "$PBXPROJ"
-          sed -i '' 's/DEVELOPMENT_TEAM = [A-Za-z0-9][A-Za-z0-9]*;/DEVELOPMENT_TEAM = "";/g' "$PBXPROJ"
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBXPROJ"
-          sed -i '' 's/PROVISIONING_PROFILE = [^;]*;/PROVISIONING_PROFILE = "";/g' "$PBXPROJ"
+          sed -i '' \
+            's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' \
+            ios/Runner.xcodeproj/project.pbxproj || true
+          sed -i '' \
+            's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' \
+            ios/Runner.xcodeproj/project.pbxproj || true
+          /usr/libexec/PlistBuddy \
+            -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" \
+            ios/Runner/Info.plist 2>/dev/null || true
+
+      - name: Pod install
+        run: cd ios && pod install --repo-update
 
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
 
-      - name: Package IPA (TrollStore)
+      - name: Package IPA
         run: |
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -qr watchtower-real.ipa Payload
-          echo "IPA: $(du -sh watchtower-real.ipa)"
+          zip -r reel.ipa Payload/
 
       - uses: actions/upload-artifact@v4
         with:
           name: ipa-trollstore
-          path: watchtower-real.ipa
+          path: reel.ipa
           retention-days: 14

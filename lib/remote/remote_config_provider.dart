@@ -6,8 +6,10 @@ const _kBaseUrl         = 'wt_real_server_url';
 const _kApiKey          = 'wt_real_api_key';
 const _kSelectedSource  = 'wt_real_source_id';
 
-/// URL par défaut : vide → l'app demande à l'utilisateur de configurer un serveur.
-const kDefaultServerUrl = '';
+/// URL du serveur Watchtower hébergé sur Replit.
+/// Pré-configuré — le feed fonctionne sans saisie manuelle.
+const kDefaultServerUrl =
+    'https://036ada93-f714-4010-8afa-e2735af81428-00-2pirsjfgvm9v3.picard.replit.dev';
 
 /// ID RedGIFs par défaut — visible en mode vidéo sans config manuelle.
 const kDefaultSourceId = '1920000001';
