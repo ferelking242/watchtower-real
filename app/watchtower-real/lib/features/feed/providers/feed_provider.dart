@@ -5,6 +5,7 @@ import '../models/feed_item.dart';
 import '../../../remote/remote_client.dart';
 import '../../../remote/remote_config_provider.dart';
 import '../../../utils/log/app_file_logger.dart';
+import '../../../remote/ntfy_logger.dart';
 
 const _tag = 'FeedProvider';
 
@@ -87,12 +88,14 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
 
     if (client == null) {
       logger.log(_tag, 'Pas de client configuré → liste vide');
+      NtfyLogger.info('App lancée sans serveur configuré');
       ref.read(serverStatusProvider.notifier).update(
           'Aucun serveur configuré — configure un serveur pour voir du contenu');
       return [];
     }
 
     logger.log(_tag, 'Client configuré (${client.baseUrl}) → chargement réel');
+    NtfyLogger.info('Connexion: ${client.baseUrl}');
     ref.read(serverStatusProvider.notifier).update(null);
 
     final config = await ref.read(remoteConfigProvider.future);
@@ -220,6 +223,7 @@ class FeedNotifier extends AsyncNotifier<List<FeedItem>> {
           'Feed étendu : ${current.length} + ${newItems.length} = ${current.length + newItems.length}');
     } catch (e, st) {
       logger.error(_tag, 'loadMore erreur page $_page: $e', st);
+      NtfyLogger.warn('loadMore page $_page échoué: $e');
       _page--; // rollback pour pouvoir retenter
     } finally {
       _isLoadingMore = false;
