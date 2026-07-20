@@ -24,6 +24,18 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   /// Sources récupérées après un test réussi
   List<Map<String, dynamic>> _sources = [];
   String? _selectedSourceId;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  List<Map<String, dynamic>> get _filteredSources {
+    final q = _searchQuery.toLowerCase().trim();
+    if (q.isEmpty) return _sources;
+    return _sources.where((s) {
+      final name = (s['name'] as String? ?? '').toLowerCase();
+      final lang = (s['lang'] as String? ?? '').toLowerCase();
+      return name.contains(q) || lang.contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -43,6 +55,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   void dispose() {
     _urlCtrl.dispose();
     _keyCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -208,14 +221,45 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(radiusMd),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  itemCount: _sources.length,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(space12, space8, space12, 4),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        style: const TextStyle(color: colorTextPrimary, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher une extension…',
+                          hintStyle: const TextStyle(color: Color(0xFF555555), fontSize: 13),
+                          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF555555), size: 18),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: () => setState(() { _searchCtrl.clear(); _searchQuery = ''; }),
+                                  child: const Icon(Icons.close_rounded, color: Color(0xFF555555), size: 16),
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: const Color(0xFF1A1A1A),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: space12, vertical: 8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(radiusSm),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFF222222)),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: _filteredSources.length,
                   separatorBuilder: (_, __) =>
                       const Divider(height: 1, color: Color(0xFF222222)),
                   itemBuilder: (context, index) {
-                    final s   = _sources[index];
+                    final s   = _filteredSources[index];
                     final id  = s['id']?.toString() ?? '';
                     final name = s['name'] as String? ?? id;
                     final lang = s['lang'] as String? ?? '';
@@ -316,6 +360,9 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                       ),
                     );
                   },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
