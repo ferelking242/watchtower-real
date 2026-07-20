@@ -1,0 +1,77 @@
+name: Build IPA (Reel — TrollStore)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: iOS IPA (TrollStore)
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.x'
+          channel: stable
+          cache: true
+
+      - name: Cache pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ~/.cocoapods
+          key: cocoapods-${{ runner.os }}-v1
+
+      - name: pub get
+        run: flutter pub get
+
+      - name: Create iOS platform (first run)
+        run: |
+          if [ ! -d ios ]; then
+            flutter create --platforms=ios --project-name reel .
+            echo "✓ iOS scaffold created"
+          fi
+
+      - name: Patch Xcode 16 signing
+        run: |
+          sed -i '' \
+            's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' \
+            ios/Runner.xcodeproj/project.pbxproj || true
+          sed -i '' \
+            's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' \
+            ios/Runner.xcodeproj/project.pbxproj || true
+          /usr/libexec/PlistBuddy \
+            -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" \
+            ios/Runner/Info.plist 2>/dev/null || true
+
+      - name: Pod install
+        run: cd ios && pod install --repo-update
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r reel.ipa Payload/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipa-trollstore
+          path: reel.ipa
+          retention-days: 14
